@@ -907,7 +907,7 @@ function App() {
         };
 
         if (key === 'shippingCharge') {
-          const num = typeof val === 'number' ? val : Number(String(val).replace(/[^0-9.-]/g, '')
+          const num = typeof val === 'number' ? val : Number(String(val).replace(/[^0-9.\-]/g, ''));
           s.shippingCharge = isNaN(num) ? 0 : num;
         } else if (key === 'shipDate' || key === 'returnDate') {
           setDateSafely(val, key);
@@ -915,6 +915,7 @@ function App() {
           s[key] = val == null ? '' : String(val);
         }
       });
+
 
       const meaningful = s.refNum || s.company || s.shippingCharge > 0;
       if (meaningful) shipmentsOut.push(s);
