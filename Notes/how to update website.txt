@@ -1,0 +1,5 @@
+git add .
+git commit -m "Rename app title"
+git push
+
+npm run deploy
