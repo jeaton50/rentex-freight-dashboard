@@ -907,7 +907,7 @@ function App() {
         };
 
         if (key === 'shippingCharge') {
-          const num = typeof val === 'number' ? val : Number(String(val).replace(/[^0-9.-]/g, ''));
+          const num = typeof val === 'number' ? val : Number(String(val).replace(/[^0-9.-]/g, '')
           s.shippingCharge = isNaN(num) ? 0 : num;
         } else if (key === 'shipDate' || key === 'returnDate') {
           setDateSafely(val, key);
