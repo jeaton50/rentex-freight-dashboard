@@ -1,0 +1,16 @@
+{
+  "files": {
+    "main.css": "/freight-dashboard-test/static/css/main.6669b369.css",
+    "main.js": "/freight-dashboard-test/static/js/main.3453f3f9.js",
+    "static/js/453.48c7246e.chunk.js": "/freight-dashboard-test/static/js/453.48c7246e.chunk.js",
+    "static/media/truck-logo.png": "/freight-dashboard-test/static/media/truck-logo.c34107b3acbd26602768.png",
+    "index.html": "/freight-dashboard-test/index.html",
+    "main.6669b369.css.map": "/freight-dashboard-test/static/css/main.6669b369.css.map",
+    "main.3453f3f9.js.map": "/freight-dashboard-test/static/js/main.3453f3f9.js.map",
+    "453.48c7246e.chunk.js.map": "/freight-dashboard-test/static/js/453.48c7246e.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.6669b369.css",
+    "static/js/main.3453f3f9.js"
+  ]
+}
