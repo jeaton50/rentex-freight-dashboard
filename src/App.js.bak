@@ -4,8 +4,8 @@ import ExcelJS from 'exceljs';
 import { toPng } from 'html-to-image';
 import { db } from './firebase';
 import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
-import { onAuthStateChanged, signOut } from 'firebase/auth';  // ADD THIS
-import { auth } from './firebase';  // ADD THIS (if not already there)
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { auth } from './firebase';
 import PasswordLogin from './PasswordLogin';
 import './App.css';
 
@@ -119,7 +119,6 @@ const toISODateUTC = (d) => {
 };
 
 function App() {
-  // NEW: Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const [selectedYear, setSelectedYear] = useState(DEFAULT_YEAR);
@@ -156,44 +155,20 @@ function App() {
   const revenueDistRef = useRef(null);
   const cityStatsRef = useRef(null);
 
-  // NEW: Check authentication on load
- useEffect(() => {
-  const unsubscribe = onAuthStateChanged(auth, (user) => {
-    if (user) {
-      setIsAuthenticated(true);
-      sessionStorage.setItem('isAuthenticated', 'true');
-    } else {
-      setIsAuthenticated(false);
-      sessionStorage.removeItem('isAuthenticated');
-    }
-  });
+  // Authentication check
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setIsAuthenticated(true);
+        sessionStorage.setItem('isAuthenticated', 'true');
+      } else {
+        setIsAuthenticated(false);
+        sessionStorage.removeItem('isAuthenticated');
+      }
+    });
 
-  return () => unsubscribe();
-}, []);
-
-  // NEW: Handle login
-  const handleLogin = () => {
-    setIsAuthenticated(true);
-  };
-
-  // NEW: Handle logout
-  const handleLogout = async () => {
-  try {
-    await signOut(auth);
-    setIsAuthenticated(false);
-    sessionStorage.removeItem('isAuthenticated');
-  } catch (error) {
-    console.error('Logout error:', error);
-  }
-};
-
-  // NEW: Show login if not authenticated
-  if (!isAuthenticated) {
-    return <PasswordLogin onLogin={handleLogin} />;
-  }
-
-  // Rest of your existing code continues here...
-  // (I'll include the rest in the artifact)
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     document.title = `Freight Dashboard – ${selectedMonth} ${selectedYear}`;
@@ -245,21 +220,23 @@ function App() {
     return () => unsub();
   }, []);
 
-  const buildDefaultShipment = () => ({
-    id: Date.now(),
-    refNum: '',
-    shipDate: '',
-    returnDate: '',
-    location: locations?.[0] || '',
-    returnLocation: '',
-    company: companies?.[0] || '',
-    shipMethod: SHIP_METHODS[0],
-    vehicleType: VEHICLE_TYPES[0],
-    shippingCharge: 0,
-    po: '',
-    agent: agents?.[0] || '',
-    city: '',
-  });
+  // Helper to build a default row
+const buildDefaultShipment = () => ({
+  id: Date.now(),
+  refNum: '',
+  shipDate: '',
+  returnDate: '',
+  location: locations?.[0] || '',
+  returnLocation: '',
+  city: '',              // <-- ADD THIS
+  company: companies?.[0] || '',
+  shipMethod: SHIP_METHODS[0],
+  vehicleType: VEHICLE_TYPES?.[0] || '', // if you have it
+  shippingCharge: 0,
+  po: '',
+  agent: agents?.[0] || '',
+});
+
 
   useEffect(() => {
     const initializeMonths = async () => {
@@ -318,6 +295,32 @@ function App() {
     });
     return () => unsubscribe();
   }, [selectedMonth, selectedYear, isYTD]);
+
+  useEffect(() => {
+    if (!showDropdown) return;
+    computeDropdownPosition();
+    const onScrollResize = () => computeDropdownPosition();
+    window.addEventListener('scroll', onScrollResize, true);
+    window.addEventListener('resize', onScrollResize);
+    return () => {
+      window.removeEventListener('scroll', onScrollResize, true);
+      window.removeEventListener('resize', onScrollResize);
+    };
+  }, [showDropdown, editValue]);
+
+  const handleLogin = () => {
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setIsAuthenticated(false);
+      sessionStorage.removeItem('isAuthenticated');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
 
   const saveToFirebase = async (updatedShipments) => {
     if (isYTD) {
@@ -383,18 +386,6 @@ function App() {
       height: Math.max(180, height),
     });
   };
-
-  useEffect(() => {
-    if (!showDropdown) return;
-    computeDropdownPosition();
-    const onScrollResize = () => computeDropdownPosition();
-    window.addEventListener('scroll', onScrollResize, true);
-    window.addEventListener('resize', onScrollResize);
-    return () => {
-      window.removeEventListener('scroll', onScrollResize, true);
-      window.removeEventListener('resize', onScrollResize);
-    };
-  }, [showDropdown, editValue]);
 
   const handleCellClick = (rowIndex, field) => {
     if (isYTD) return;
@@ -489,10 +480,12 @@ function App() {
   };
 
   const handleKeyDown = (e, rowIndex, field) => {
-    const fields = [
-      'refNum', 'shipDate', 'returnDate', 'location', 'returnLocation',
-      'company', 'shipMethod', 'vehicleType', 'shippingCharge', 'po', 'agent', 'city',
-    ];
+   const fields = [
+  'refNum', 'shipDate', 'returnDate',
+  'location', 'returnLocation', 'city',  // <-- ADD "city" here
+  'company', 'shipMethod', 'shippingCharge', 'po', 'agent',
+];
+
     const currentIndex = fields.indexOf(field);
 
     if (e.key === 'Enter') {
@@ -678,13 +671,14 @@ function App() {
       returnDate: s.returnDate ?? '',
       location: s.location ?? '',
       returnLocation: s.returnLocation ?? '',
+	  city: s.city ?? '',
       company: s.company ?? '',
       shipMethod: s.shipMethod ?? '',
       vehicleType: s.vehicleType ?? '',
       shippingCharge: Number(s.shippingCharge || 0),
       po: s.po ?? '',
       agent: s.agent ?? '',
-      city: s.city ?? '',
+      
     }));
 
   const buildDataSheetPretty = (wb, title, rows) => {
@@ -701,6 +695,54 @@ function App() {
 
     return sheet;
   };
+
+// Creates a single flat table (all months) for Power BI
+const buildAllRowsSheet = (wb, year, monthToRowsMap) => {
+  const sheet = wb.addWorksheet('All Rows', { views: [{ state: 'frozen', ySplit: 1 }] });
+
+  sheet.columns = [
+    { header: 'Year', key: 'year' },
+    { header: 'Month', key: 'month' },
+    { header: 'Reference #', key: 'refNum' },
+    { header: 'Ship Date', key: 'shipDate' },
+    { header: 'Return Date', key: 'returnDate' },
+    { header: 'Location', key: 'location' },
+    { header: 'Return Location', key: 'returnLocation' },
+    { header: 'City', key: 'city' },  // ← ADDED CITY
+    { header: 'Company', key: 'company' },
+    { header: 'Ship Method', key: 'shipMethod' },
+    { header: 'Vehicle Type', key: 'vehicleType' },
+    { header: 'Charges', key: 'shippingCharge' },
+    { header: 'PO', key: 'po' },
+    { header: 'Agent', key: 'agent' },
+  ];
+
+  sheet.getRow(1).font = { bold: true };
+
+  // Use MONTHS array instead of Object.keys for proper ordering
+  let totalRows = 0;
+  MONTHS.forEach(m => {
+    const rows = monthToRowsMap[m];
+    if (!rows || rows.length === 0) {
+      console.log(`${m}: no data`);
+      return;
+    }
+    
+    console.log(`${m}: ${rows.length} rows`);
+    rows.forEach(r => {
+      sheet.addRow({ year, month: m, ...r });
+      totalRows++;
+    });
+  });
+
+  console.log(`✓ All Rows sheet: ${totalRows} total rows added`);
+
+  // Format
+  sheet.getColumn('shippingCharge').numFmt = '$#,##0.00';
+  autosizeColumns(sheet, { min: 10, max: 40, buffer: 2 });
+
+  return sheet;
+};
 
   const downloadBlob = (blob, filename) => {
     const url = URL.createObjectURL(blob);
@@ -827,19 +869,37 @@ function App() {
   };
 
   const exportAllMonthsExcel = async () => {
-    const wb = new ExcelJS.Workbook();
-    for (const month of MONTHS) {
-      const docSnap = await getDoc(monthDocRef(selectedYear, month));
-      const list = docSnap.exists() ? docSnap.data().shipments || [] : [];
-      const rows = mapRowsForExcel(list);
-      buildDataSheetPretty(wb, `${month} ${selectedYear}`, rows);
-    }
-    const buf = await wb.xlsx.writeBuffer();
-    downloadBlob(
-      new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-      `freight-${selectedYear}-all-months-${new Date().toISOString().split('T')[0]}.xlsx`
-    );
-  };
+  const wb = new ExcelJS.Workbook();
+  const monthToRowsMap = {};
+
+  // Collect data from all months
+  for (const month of MONTHS) {
+    const docSnap = await getDoc(monthDocRef(selectedYear, month));
+    const list = docSnap.exists() ? docSnap.data().shipments || [] : [];
+    const rows = mapRowsForExcel(list);
+    
+    // Store for flat table
+    monthToRowsMap[month] = rows;
+    
+    // Create individual month sheets
+    buildDataSheetPretty(wb, `${month} ${selectedYear}`, rows);
+  }
+
+  // Debug: check if we have data
+  console.log('Month data collected:', Object.keys(monthToRowsMap).length, 'months');
+  const totalRecords = Object.values(monthToRowsMap).flat().length;
+  console.log('Total records:', totalRecords);
+
+  // Create the flat Power BI table
+  buildAllRowsSheet(wb, selectedYear, monthToRowsMap);
+
+  const buf = await wb.xlsx.writeBuffer();
+  downloadBlob(
+    new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+    `freight-${selectedYear}-all-months-${new Date().toISOString().split('T')[0]}.xlsx`
+  );
+};
+
 
   const headerKeyMap = {
     'reference #': 'refNum',
@@ -847,13 +907,14 @@ function App() {
     'return date': 'returnDate',
     'location': 'location',
     'return location': 'returnLocation',
+	'city': 'city',
     'company': 'company',
     'ship method': 'shipMethod',
     'vehicle type': 'vehicleType',
     'charges': 'shippingCharge',
     'po': 'po',
     'agent': 'agent',
-    'city': 'city',
+    
   };
 
   const parseSheetToShipments = (sheet) => {
@@ -880,13 +941,14 @@ function App() {
         returnDate: '',
         location: '',
         returnLocation: '',
+		city: '',
         company: '',
         shipMethod: '',
         vehicleType: '',
         shippingCharge: 0,
         po: '',
         agent: '',
-        city: '',
+        
       };
 
       row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
@@ -1128,11 +1190,15 @@ function App() {
     );
   };
 
-  // Main app render - now protected by authentication
+  // Show login screen if not authenticated (AFTER all hooks)
+  if (!isAuthenticated) {
+    return <PasswordLogin onLogin={handleLogin} />;
+  }
+
+  // Main app render
   return (
     <div style={{ minHeight: '100vh', background: 'white' }}>
       <div style={{ maxWidth: '98%', margin: '0 auto', padding: '16px' }}>
-        {/* Header */}
         <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1e293b' }}>
@@ -1147,9 +1213,7 @@ function App() {
             </p>
           </div>
 
-          {/* Action bar */}
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {/* NEW: Logout Button */}
             <button
               onClick={handleLogout}
               style={{ padding: '8px 16px', background: '#64748b', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
@@ -1286,7 +1350,6 @@ function App() {
           </div>
         </div>
 
-        {/* Summary Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
           <div style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: '12px', padding: '20px', color: 'white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
             <div style={{ fontSize: '13px', opacity: 0.9, marginBottom: '8px' }}>Total Revenue</div>
@@ -1306,7 +1369,6 @@ function App() {
           </div>
         </div>
 
-        {/* Charts Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
           <div ref={costPerCompanyRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px' }}>
             <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '12px', color: '#334155' }}>Shipping Cost Per Company</h3>
@@ -1374,7 +1436,6 @@ function App() {
           </div>
         </div>
 
-        {/* Revenue Distribution */}
         <div ref={revenueDistRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
           <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Revenue Distribution by Company</h3>
           {companySummary.length > 0 ? (
@@ -1415,7 +1476,6 @@ function App() {
           )}
         </div>
 
-        {/* City Statistics */}
         <div ref={cityStatsRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
           <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Shipments by City</h3>
           {citySummary.length > 0 ? (
@@ -1475,7 +1535,6 @@ function App() {
           )}
         </div>
 
-        {/* Data Entry Table */}
         <div style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px' }}>
           <div style={{ background: '#1d4ed8', color: 'white', padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTopLeftRadius: '8px', borderTopRightRadius: '8px' }}>
             <h2 style={{ fontWeight: 'bold', fontSize: '14px' }}>Shipment Details - {selectedMonth} {selectedYear}</h2>
@@ -1502,7 +1561,7 @@ function App() {
                   <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>VEHICLE TYPE</th>
                   <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>CHARGES</th>
                   <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>PO</th>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: '600', color: '#334155' }}>AGENT</th>
+                  <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>AGENT</th>
                   <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>ACTION</th>
                 </tr>
               </thead>
