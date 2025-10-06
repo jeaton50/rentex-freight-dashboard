@@ -220,21 +220,23 @@ function App() {
     return () => unsub();
   }, []);
 
-  const buildDefaultShipment = () => ({
-    id: Date.now(),
-    refNum: '',
-    shipDate: '',
-    returnDate: '',
-    location: locations?.[0] || '',
-    returnLocation: '',
-    company: companies?.[0] || '',
-    shipMethod: SHIP_METHODS[0],
-    vehicleType: VEHICLE_TYPES[0],
-    shippingCharge: 0,
-    po: '',
-    agent: agents?.[0] || '',
-    city: '',
-  });
+  // Helper to build a default row
+const buildDefaultShipment = () => ({
+  id: Date.now(),
+  refNum: '',
+  shipDate: '',
+  returnDate: '',
+  location: locations?.[0] || '',
+  returnLocation: '',
+  city: '',              // <-- ADD THIS
+  company: companies?.[0] || '',
+  shipMethod: SHIP_METHODS[0],
+  vehicleType: VEHICLE_TYPES?.[0] || '', // if you have it
+  shippingCharge: 0,
+  po: '',
+  agent: agents?.[0] || '',
+});
+
 
   useEffect(() => {
     const initializeMonths = async () => {
@@ -478,10 +480,12 @@ function App() {
   };
 
   const handleKeyDown = (e, rowIndex, field) => {
-    const fields = [
-      'refNum', 'shipDate', 'returnDate', 'location', 'returnLocation',
-      'company', 'shipMethod', 'vehicleType', 'shippingCharge', 'po', 'agent', 'city',
-    ];
+   const fields = [
+  'refNum', 'shipDate', 'returnDate',
+  'location', 'returnLocation', 'city',  // <-- ADD "city" here
+  'company', 'shipMethod', 'shippingCharge', 'po', 'agent',
+];
+
     const currentIndex = fields.indexOf(field);
 
     if (e.key === 'Enter') {
@@ -667,13 +671,14 @@ function App() {
       returnDate: s.returnDate ?? '',
       location: s.location ?? '',
       returnLocation: s.returnLocation ?? '',
+	  city: s.city ?? '',
       company: s.company ?? '',
       shipMethod: s.shipMethod ?? '',
       vehicleType: s.vehicleType ?? '',
       shippingCharge: Number(s.shippingCharge || 0),
       po: s.po ?? '',
       agent: s.agent ?? '',
-      city: s.city ?? '',
+      
     }));
 
   const buildDataSheetPretty = (wb, title, rows) => {
@@ -690,6 +695,48 @@ function App() {
 
     return sheet;
   };
+
+// Creates a single flat table (all months) for Power BI
+const buildAllRowsSheet = (wb, year, monthToRowsMap) => {
+  console.log('Building All Rows sheet...');
+  const sheet = wb.addWorksheet('All Rows', { views: [{ state: 'frozen', ySplit: 1 }] });
+
+  sheet.columns = [
+    { header: 'Year', key: 'year' },
+    { header: 'Month', key: 'month' },
+    { header: 'Reference #', key: 'refNum' },
+    { header: 'Ship Date', key: 'shipDate' },
+    { header: 'Return Date', key: 'returnDate' },
+    { header: 'Location', key: 'location' },
+    { header: 'Return Location', key: 'returnLocation' },
+    { header: 'City', key: 'city' },
+    { header: 'Company', key: 'company' },
+    { header: 'Ship Method', key: 'shipMethod' },
+    { header: 'Vehicle Type', key: 'vehicleType' },
+    { header: 'Charges', key: 'shippingCharge' },
+    { header: 'PO', key: 'po' },
+    { header: 'Agent', key: 'agent' },
+  ];
+
+  sheet.getRow(1).font = { bold: true };
+  sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+
+  let totalRows = 0;
+  MONTHS.forEach(m => {
+    const rows = monthToRowsMap[m] || [];
+    console.log(`Adding ${rows.length} rows for ${m}`);
+    rows.forEach(r => {
+      sheet.addRow({ year, month: m, ...r });
+      totalRows++;
+    });
+  });
+
+  sheet.getColumn('shippingCharge').numFmt = '$#,##0.00';
+  autosizeColumns(sheet, { min: 10, max: 40, buffer: 2 });
+
+  console.log(`All Rows sheet complete: ${totalRows} total rows`);
+  return sheet;
+};
 
   const downloadBlob = (blob, filename) => {
     const url = URL.createObjectURL(blob);
@@ -816,19 +863,46 @@ function App() {
   };
 
   const exportAllMonthsExcel = async () => {
+  try {
     const wb = new ExcelJS.Workbook();
+    const monthToRowsMap = {};
+
+    // Collect data from all months
+    console.log('Starting export...');
     for (const month of MONTHS) {
       const docSnap = await getDoc(monthDocRef(selectedYear, month));
       const list = docSnap.exists() ? docSnap.data().shipments || [] : [];
       const rows = mapRowsForExcel(list);
+      
+      monthToRowsMap[month] = rows;
+      console.log(`${month}: ${rows.length} rows collected`);
+      
+      // Create individual month sheets
       buildDataSheetPretty(wb, `${month} ${selectedYear}`, rows);
     }
+
+    // Debug totals
+    const totalRecords = Object.values(monthToRowsMap).reduce((sum, rows) => sum + rows.length, 0);
+    console.log(`Total records across all months: ${totalRecords}`);
+
+    // Create the flat Power BI table BEFORE writing buffer
+    console.log('Creating All Rows sheet...');
+    buildAllRowsSheet(wb, selectedYear, monthToRowsMap);
+    console.log(`Workbook now has ${wb.worksheets.length} worksheets`);
+
+    // Write and download
     const buf = await wb.xlsx.writeBuffer();
     downloadBlob(
       new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
       `freight-${selectedYear}-all-months-${new Date().toISOString().split('T')[0]}.xlsx`
     );
-  };
+    
+    console.log('Export complete!');
+  } catch (error) {
+    console.error('Export failed:', error);
+    alert(`Export failed: ${error.message}`);
+  }
+};
 
   const headerKeyMap = {
     'reference #': 'refNum',
@@ -836,13 +910,14 @@ function App() {
     'return date': 'returnDate',
     'location': 'location',
     'return location': 'returnLocation',
+	'city': 'city',
     'company': 'company',
     'ship method': 'shipMethod',
     'vehicle type': 'vehicleType',
     'charges': 'shippingCharge',
     'po': 'po',
     'agent': 'agent',
-    'city': 'city',
+    
   };
 
   const parseSheetToShipments = (sheet) => {
@@ -869,13 +944,14 @@ function App() {
         returnDate: '',
         location: '',
         returnLocation: '',
+		city: '',
         company: '',
         shipMethod: '',
         vehicleType: '',
         shippingCharge: 0,
         po: '',
         agent: '',
-        city: '',
+        
       };
 
       row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
