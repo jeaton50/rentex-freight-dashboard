@@ -1,16 +1,16 @@
 {
   "files": {
     "main.css": "/rentex-freight-dashboard/static/css/main.6669b369.css",
-    "main.js": "/rentex-freight-dashboard/static/js/main.6aa28d29.js",
+    "main.js": "/rentex-freight-dashboard/static/js/main.bdc9455d.js",
     "static/js/453.c885fd1b.chunk.js": "/rentex-freight-dashboard/static/js/453.c885fd1b.chunk.js",
     "static/media/truck-logo.png": "/rentex-freight-dashboard/static/media/truck-logo.c34107b3acbd26602768.png",
     "index.html": "/rentex-freight-dashboard/index.html",
     "main.6669b369.css.map": "/rentex-freight-dashboard/static/css/main.6669b369.css.map",
-    "main.6aa28d29.js.map": "/rentex-freight-dashboard/static/js/main.6aa28d29.js.map",
+    "main.bdc9455d.js.map": "/rentex-freight-dashboard/static/js/main.bdc9455d.js.map",
     "453.c885fd1b.chunk.js.map": "/rentex-freight-dashboard/static/js/453.c885fd1b.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.6669b369.css",
-    "static/js/main.6aa28d29.js"
+    "static/js/main.bdc9455d.js"
   ]
 }
