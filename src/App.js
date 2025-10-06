@@ -983,7 +983,7 @@ const buildAllRowsSheet = (wb, year, monthToRowsMap) => {
         };
 
         if (key === 'shippingCharge') {
-          const num = typeof val === 'number' ? val : Number(String(val).replace(/[^0-9.\-]/g, ''));
+         const num = typeof val === 'number' ? val : Number(String(val).replace(/[^0-9.-]/g, ''));
           s.shippingCharge = isNaN(num) ? 0 : num;
         } else if (key === 'shipDate' || key === 'returnDate') {
           setDateSafely(val, key);
@@ -991,6 +991,7 @@ const buildAllRowsSheet = (wb, year, monthToRowsMap) => {
           s[key] = val == null ? '' : String(val);
         }
       });
+
 
       const meaningful = s.refNum || s.company || s.shippingCharge > 0;
       if (meaningful) shipmentsOut.push(s);
