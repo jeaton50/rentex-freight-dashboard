@@ -137,7 +137,7 @@ function App() {
   const [newAgent, setNewAgent] = useState('');
   const [newCity, setNewCity] = useState('');
   const [newClient, setNewClient] = useState('');
-
+  const [bulkAddModal, setBulkAddModal] = useState({ open: false, type: '', items: '' });
   const [shipments, setShipments] = useState([]);
 
   const [editingCell, setEditingCell] = useState(null);
@@ -689,6 +689,104 @@ function App() {
     }
   };
 
+const handleBulkAdd = async () => {
+  const lines = bulkAddModal.items
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0);
+
+  if (lines.length === 0) {
+    alert('Please enter at least one item (one per line)');
+    return;
+  }
+
+  const type = bulkAddModal.type;
+  let currentList, fieldName, processor;
+
+  switch (type) {
+    case 'company':
+      currentList = companies;
+      fieldName = 'companies';
+      processor = (val) => val.toUpperCase();
+      break;
+    case 'location':
+      currentList = locations;
+      fieldName = 'locations';
+      processor = (val) => val;
+      break;
+    case 'agent':
+      currentList = agents;
+      fieldName = 'agents';
+      processor = (val) => {
+        let candidate = val.toUpperCase();
+        if (!candidate.includes('.')) {
+          const parts = candidate.split(/\s+/).filter(Boolean);
+          if (parts.length >= 2) {
+            const firstInitial = parts[0][0];
+            const last = parts.slice(1).join('').replace(/[^A-Z]/g, '');
+            candidate = `${firstInitial}.${last}`;
+          }
+        }
+        return candidate;
+      };
+      break;
+    case 'city':
+      currentList = cities;
+      fieldName = 'cities';
+      processor = (val) => val;
+      break;
+    case 'client':
+      currentList = clients;
+      fieldName = 'clients';
+      processor = (val) => val;
+      break;
+    default:
+      return;
+  }
+
+  const newItems = [];
+  const duplicates = [];
+  
+  lines.forEach(line => {
+    const processed = processor(line);
+    const exists = currentList.some(item => 
+      item.toLowerCase() === processed.toLowerCase()
+    );
+    
+    if (exists) {
+      duplicates.push(processed);
+    } else if (!newItems.some(item => item.toLowerCase() === processed.toLowerCase())) {
+      newItems.push(processed);
+    }
+  });
+
+  if (newItems.length === 0) {
+    alert(`All items already exist!${duplicates.length > 0 ? '\n\nDuplicates: ' + duplicates.join(', ') : ''}`);
+    return;
+  }
+
+  const updatedList = [...currentList, ...newItems].sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: 'base' })
+  );
+
+  try {
+    const cfgRef = doc(db, 'freight-config', 'global');
+    await setDoc(cfgRef, { 
+      [fieldName]: updatedList, 
+      updatedAt: new Date().toISOString() 
+    }, { merge: true });
+    
+    setBulkAddModal({ open: false, type: '', items: '' });
+    
+    const message = `✅ Added ${newItems.length} ${type}(s) successfully!` +
+      (duplicates.length > 0 ? `\n\n⚠️ Skipped ${duplicates.length} duplicate(s)` : '');
+    alert(message);
+  } catch (e) {
+    console.error(`Failed to bulk add ${type}s:`, e);
+    alert(`Failed to add ${type}s. Check your permissions/rules.`);
+  }
+};
+
   const excelColumns = [
     { header: 'Reference #', key: 'refNum' },
     { header: 'Client', key: 'client' },
@@ -1107,6 +1205,8 @@ function App() {
       setIsImporting(false);
     }
   };
+  
+  
 
   const companySummary = (() => {
     const summary = {};
@@ -1333,6 +1433,93 @@ function App() {
     );
   };
 
+  const BulkAddModal = () => {
+    if (!bulkAddModal.open) return null;
+
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0,0,0,0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 10000,
+      }}>
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          padding: '24px',
+          width: '90%',
+          maxWidth: '600px',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+        }}>
+          <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' }}>
+            Bulk Add {bulkAddModal.type.charAt(0).toUpperCase() + bulkAddModal.type.slice(1)}s
+          </h3>
+          
+          <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '12px' }}>
+            Enter one {bulkAddModal.type} per line. Duplicates will be automatically skipped.
+          </p>
+          
+          <textarea
+            value={bulkAddModal.items}
+            onChange={(e) => setBulkAddModal({ ...bulkAddModal, items: e.target.value })}
+            placeholder={`Example:\n${bulkAddModal.type === 'client' ? 'Acme Corp\nGlobal Industries\nTech Solutions' : bulkAddModal.type === 'city' ? 'Seattle\nPortland\nDenver' : bulkAddModal.type === 'agent' ? 'John Doe\nJane Smith' : bulkAddModal.type === 'company' ? 'FEDEX\nUPS\nDHL' : 'Location 1\nLocation 2'}`}
+            style={{
+              width: '100%',
+              minHeight: '200px',
+              padding: '12px',
+              border: '1px solid #cbd5e1',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontFamily: 'monospace',
+              marginBottom: '16px',
+              resize: 'vertical',
+            }}
+            autoFocus
+          />
+          
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => setBulkAddModal({ open: false, type: '', items: '' })}
+              style={{
+                padding: '8px 16px',
+                background: '#e2e8f0',
+                color: '#475569',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleBulkAdd}
+              style={{
+                padding: '8px 16px',
+                background: '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+              }}
+            >
+              Add All
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  
   if (!isAuthenticated) {
     return <PasswordLogin onLogin={handleLogin} />;
   }
@@ -1488,6 +1675,14 @@ function App() {
     + Add Client
   </button>
 </div>
+
+<button
+  onClick={() => setBulkAddModal({ open: true, type: 'client', items: '' })}
+  style={{ padding: '8px 12px', background: '#be185d', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
+  title="Add multiple clients at once"
+>
+  📋 Bulk
+</button>
 
             <button
               onClick={exportMonthExcel}
@@ -1961,6 +2156,7 @@ function App() {
           </div>
         </div>
       </div>
+	  <BulkAddModal />
     </div>
   );
 }

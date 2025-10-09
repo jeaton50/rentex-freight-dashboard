@@ -1479,6 +1479,8 @@ const handleBulkAdd = async () => {
               fontFamily: 'monospace',
               marginBottom: '16px',
               resize: 'vertical',
+			  direction: 'ltr',  // ADD THIS LINE
+			  textAlign: 'left', // ADD THIS LINE TOO
             }}
             autoFocus
           />
