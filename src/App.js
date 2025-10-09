@@ -1684,6 +1684,14 @@ const handleBulkAdd = async () => {
               >
                 + Add Agent
               </button>
+			  {/* Agent */}
+<button
+  onClick={() => setBulkAddModal({ open: true, type: 'agent', items: '' })}
+  style={{ padding: '8px 12px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
+  title='Bulk add agents (e.g., "J.DOE" or "John Doe" per line)'
+>
+  📋 Bulk
+</button>
             </div>
 
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -1701,6 +1709,14 @@ const handleBulkAdd = async () => {
               >
                 + Add City
               </button>
+			  {/* City */}
+<button
+  onClick={() => setBulkAddModal({ open: true, type: 'city', items: '' })}
+  style={{ padding: '8px 12px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
+  title="Bulk add cities (one per line)"
+>
+  📋 Bulk
+</button>
             </div>
 
 <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
