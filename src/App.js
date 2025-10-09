@@ -1623,7 +1623,26 @@ const handleBulkAdd = async () => {
               >
                 + Add Company
               </button>
-            </div>
+            
+
+{/* new bulk-add trigger */}
+  <button
+    onClick={() => setBulkAddModal({ open: true, type: 'company', items: '' })}
+    style={{
+      padding: '8px 12px',
+      background: '#0d9488',
+      color: 'white',
+      border: 'none',
+      borderRadius: '8px',
+      fontSize: '13px',
+      fontWeight: '600',
+      cursor: 'pointer'
+    }}
+    title="Bulk add companies (one per line)"
+  >
+    📋 Bulk
+  </button>
+</div>
 
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
               <input
