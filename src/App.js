@@ -1514,7 +1514,7 @@ function App() {
                     </thead>
                     <tbody>
                       {companySummary.map((item, idx) => (
-                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
                           <td style={{ padding: '4px' }}>{item.company}</td>
                           <td style={{ textAlign: 'right', padding: '4px' }}>
                             ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
