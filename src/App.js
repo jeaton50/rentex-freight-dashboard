@@ -130,11 +130,13 @@ function App() {
   const [locations, setLocations] = useState(DEFAULT_LOCATIONS);
   const [agents, setAgents] = useState(DEFAULT_AGENTS);
   const [cities, setCities] = useState(DEFAULT_CITIES);
+  const [clients, setClients] = useState([]);
 
   const [newCompany, setNewCompany] = useState('');
   const [newLocation, setNewLocation] = useState('');
   const [newAgent, setNewAgent] = useState('');
   const [newCity, setNewCity] = useState('');
+  const [newClient, setNewClient] = useState('');
 
   const [shipments, setShipments] = useState([]);
 
@@ -190,6 +192,7 @@ function App() {
           locations: DEFAULT_LOCATIONS,
           agents: DEFAULT_AGENTS,
           cities: DEFAULT_CITIES,
+          clients: [],
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
@@ -200,6 +203,7 @@ function App() {
         if (!Array.isArray(data.locations)) payload.locations = DEFAULT_LOCATIONS;
         if (!Array.isArray(data.agents)) payload.agents = DEFAULT_AGENTS;
         if (!Array.isArray(data.cities)) payload.cities = DEFAULT_CITIES;
+        if (!Array.isArray(data.clients)) payload.clients = [];
         if (Object.keys(payload).length) {
           payload.updatedAt = new Date().toISOString();
           await setDoc(cfgRef, payload, { merge: true });
@@ -214,11 +218,13 @@ function App() {
         setLocations(Array.isArray(data.locations) && data.locations.length ? data.locations : DEFAULT_LOCATIONS);
         setAgents(Array.isArray(data.agents) && data.agents.length ? data.agents : DEFAULT_AGENTS);
         setCities(Array.isArray(data.cities) && data.cities.length ? data.cities : DEFAULT_CITIES);
+        setClients(Array.isArray(data.clients) ? data.clients : []);
       } else {
         setCompanies(DEFAULT_COMPANIES);
         setLocations(DEFAULT_LOCATIONS);
         setAgents(DEFAULT_AGENTS);
         setCities(DEFAULT_CITIES);
+        setClients([]);
       }
     });
 
@@ -414,6 +420,10 @@ function App() {
       setFilteredOptions(cities);
       setShowDropdown(true);
       setTimeout(computeDropdownPosition, 0);
+    } else if (field === 'client') {
+      setFilteredOptions(clients);
+      setShowDropdown(true);
+      setTimeout(computeDropdownPosition, 0);
     } else if (field === 'shipMethod') {
       setFilteredOptions(SHIP_METHODS);
       setShowDropdown(true);
@@ -434,7 +444,7 @@ function App() {
     const field = editingCell?.field;
     if (!field) return;
 
-    if (['company', 'agent', 'location', 'returnLocation', 'city', 'shipMethod', 'vehicleType'].includes(field)) {
+    if (['company', 'agent', 'location', 'returnLocation', 'city', 'client', 'shipMethod', 'vehicleType'].includes(field)) {
       const options =
         field === 'company'
           ? companies
@@ -442,6 +452,8 @@ function App() {
           ? agents
           : field === 'city'
           ? cities
+          : field === 'client'
+          ? clients
           : field === 'shipMethod'
           ? SHIP_METHODS
           : field === 'vehicleType'
@@ -517,34 +529,34 @@ function App() {
   };
 
   const handleAddRow = async () => {
-  if (isYTD) {
-    try {
-      const targetRef = monthDocRef(selectedYear, editTargetMonth);
-      const snap = await getDoc(targetRef);
-      const existing = snap.exists() ? (snap.data().shipments || []) : [];
-      const updated = [buildDefaultShipment(), ...existing]; // Add at the top
-      await setDoc(targetRef, {
-        shipments: updated,
-        lastModified: new Date().toISOString(),
-        month: editTargetMonth,
-        year: selectedYear,
-      });
-      alert(`Row added to ${editTargetMonth} ${selectedYear}.`);
-    } catch (e) {
-      console.error('Add row (YTD) failed:', e);
-      alert('Failed to add row to target month.');
+    if (isYTD) {
+      try {
+        const targetRef = monthDocRef(selectedYear, editTargetMonth);
+        const snap = await getDoc(targetRef);
+        const existing = snap.exists() ? (snap.data().shipments || []) : [];
+        const updated = [buildDefaultShipment(), ...existing]; // Add at the top
+        await setDoc(targetRef, {
+          shipments: updated,
+          lastModified: new Date().toISOString(),
+          month: editTargetMonth,
+          year: selectedYear,
+        });
+        alert(`Row added to ${editTargetMonth} ${selectedYear}.`);
+      } catch (e) {
+        console.error('Add row (YTD) failed:', e);
+        alert('Failed to add row to target month.');
+      }
+      return;
     }
-    return;
-  }
 
-  const newShipment = buildDefaultShipment();
-  const updatedShipments = [newShipment, ...shipments]; // Add at the top
-  setShipments(updatedShipments);
-  saveToFirebase(updatedShipments);
-  setTimeout(() => {
-    handleCellClick(0, 'refNum'); // Focus on first row (index 0)
-  }, 300);
-};
+    const newShipment = buildDefaultShipment();
+    const updatedShipments = [newShipment, ...shipments]; // Add at the top
+    setShipments(updatedShipments);
+    saveToFirebase(updatedShipments);
+    setTimeout(() => {
+      handleCellClick(0, 'refNum'); // Focus on first row (index 0)
+    }, 300);
+  };
 
   const handleDeleteRow = (index) => {
     if (isYTD) {
@@ -652,6 +664,28 @@ function App() {
     } catch (e) {
       console.error('Failed to add city:', e);
       alert('Failed to add city. Check your permissions/rules.');
+    }
+  };
+
+  const addClientGlobal = async () => {
+    const raw = newClient.trim();
+    if (!raw) return;
+    const exists = clients.some(c => c.toLowerCase() === raw.toLowerCase());
+    if (exists) {
+      alert(`"${raw}" already exists.`);
+      return;
+    }
+    const next = [...clients, raw].sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base' })
+    );
+
+    try {
+      const cfgRef = doc(db, 'freight-config', 'global');
+      await setDoc(cfgRef, { clients: next, updatedAt: new Date().toISOString() }, { merge: true });
+      setNewClient('');
+    } catch (e) {
+      console.error('Failed to add client:', e);
+      alert('Failed to add client. Check your permissions/rules.');
     }
   };
 
@@ -1151,43 +1185,43 @@ function App() {
   };
 
   const sortedShipments = React.useMemo(() => {
-  if (!sortConfig.key) return shipments;
+    if (!sortConfig.key) return shipments;
 
-  const sorted = [...shipments].sort((a, b) => {
-    const aVal = a[sortConfig.key] ?? '';
-    const bVal = b[sortConfig.key] ?? '';
+    const sorted = [...shipments].sort((a, b) => {
+      const aVal = a[sortConfig.key] ?? '';
+      const bVal = b[sortConfig.key] ?? '';
 
-    if (sortConfig.key === 'shippingCharge') {
-      const aNum = Number(aVal);
-      const bNum = Number(bVal);
-      return sortConfig.direction === 'asc' ? aNum - bNum : bNum - aNum;
-    }
+      if (sortConfig.key === 'shippingCharge') {
+        const aNum = Number(aVal);
+        const bNum = Number(bVal);
+        return sortConfig.direction === 'asc' ? aNum - bNum : bNum - aNum;
+      }
 
-    if (sortConfig.key === 'shipDate' || sortConfig.key === 'returnDate') {
-      // CHANGED: Handle blank dates - put them first
-      const aIsBlank = !aVal || aVal === '';
-      const bIsBlank = !bVal || bVal === '';
-      
-      if (aIsBlank && bIsBlank) return 0;
-      if (aIsBlank) return -1; // Blanks always first
-      if (bIsBlank) return 1;  // Blanks always first
-      
-      const aDate = new Date(aVal).getTime();
-      const bDate = new Date(bVal).getTime();
-      return sortConfig.direction === 'asc' ? aDate - bDate : bDate - aDate;
-    }
+      if (sortConfig.key === 'shipDate' || sortConfig.key === 'returnDate') {
+        // Handle blank dates - put them first
+        const aIsBlank = !aVal || aVal === '';
+        const bIsBlank = !bVal || bVal === '';
+        
+        if (aIsBlank && bIsBlank) return 0;
+        if (aIsBlank) return sortConfig.direction === 'asc' ? -1 : 1; // Blanks always first
+        if (bIsBlank) return sortConfig.direction === 'asc' ? 1 : -1; // Blanks always first
+        
+        const aDate = new Date(aVal).getTime();
+        const bDate = new Date(bVal).getTime();
+        return sortConfig.direction === 'asc' ? aDate - bDate : bDate - aDate;
+      }
 
-    const aStr = String(aVal).toLowerCase();
-    const bStr = String(bVal).toLowerCase();
-    if (sortConfig.direction === 'asc') {
-      return aStr.localeCompare(bStr);
-    } else {
-      return bStr.localeCompare(aStr);
-    }
-  });
+      const aStr = String(aVal).toLowerCase();
+      const bStr = String(bVal).toLowerCase();
+      if (sortConfig.direction === 'asc') {
+        return aStr.localeCompare(bStr);
+      } else {
+        return bStr.localeCompare(aStr);
+      }
+    });
 
-  return sorted;
-}, [shipments, sortConfig]);
+    return sorted;
+  }, [shipments, sortConfig]);
 
   const getSortIcon = (columnKey) => {
     if (sortConfig.key !== columnKey) {
