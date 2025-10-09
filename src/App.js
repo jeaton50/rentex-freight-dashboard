@@ -1659,6 +1659,14 @@ const handleBulkAdd = async () => {
               >
                 + Add Location
               </button>
+			  {/* Location */}
+<button
+  onClick={() => setBulkAddModal({ open: true, type: 'location', items: '' })}
+  style={{ padding: '8px 12px', background: '#155e75', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
+  title="Bulk add locations (one per line)"
+>
+  📋 Bulk
+</button>
             </div>
 
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
