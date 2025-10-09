@@ -10,7 +10,7 @@ import PasswordLogin from './PasswordLogin';
 import './App.css';
 
 // ============================================
-// DEFAULTS (bootstrap Firestore config.)
+// DEFAULTS (bootstrap Firestore config)
 // ============================================
 const DEFAULT_COMPANIES = [
   'COWBOYS', 'CRANE', 'FLORIDA FREIGHT', 'KOL', 'PHOENIX FREIGHT',
