@@ -155,6 +155,7 @@ function App() {
 
   const costPerCompanyRef = useRef(null);
   const clientStatsRef = useRef(null);
+  const agentStatsRef = useRef(null);
   const shipmentCountRef = useRef(null);
   const revenueDistRef = useRef(null);
   const cityStatsRef = useRef(null);
@@ -806,11 +807,12 @@ function App() {
       await new Promise(resolve => setTimeout(resolve, 100));
     }
 
-    const [imgCostPerCompany, imgShipmentCount, imgRevenueDist, imgClientStats, imgCityStats] = await Promise.all([
+    const [imgCostPerCompany, imgShipmentCount, imgRevenueDist, imgClientStats, imgAgentStats, imgCityStats] = await Promise.all([
       capture(costPerCompanyRef.current),
       capture(shipmentCountRef.current),
       capture(revenueDistRef.current),
       capture(clientStatsRef.current),
+      capture(agentStatsRef.current),
       capture(cityStatsRef.current),
     ]);
 
@@ -874,7 +876,8 @@ function App() {
     addImg(imgShipmentCount, 18, 0, 900, 350);
     addImg(imgRevenueDist, 34, 0, 900, 350);
     addImg(imgClientStats, 50, 0, 900, 350);
-    addImg(imgCityStats, 66, 0, 900, 350);
+    addImg(imgAgentStats, 66, 0, 900, 350);
+    addImg(imgCityStats, 82, 0, 900, 350);
 
     const buf = await wb.xlsx.writeBuffer();
     downloadBlob(
@@ -1099,6 +1102,21 @@ function App() {
       .sort((a, b) => a.client.localeCompare(b.client));
   })();
 
+  const agentSummary = (() => {
+    const summary = {};
+    shipments.forEach((s) => {
+      if (s.agent && s.agent.trim() !== '') {
+        const key = s.agent;
+        if (!summary[key]) summary[key] = { count: 0, total: 0 };
+        summary[key].count += 1;
+        summary[key].total += Number(s.shippingCharge || 0);
+      }
+    });
+    return Object.entries(summary)
+      .map(([agent, data]) => ({ agent, ...data }))
+      .sort((a, b) => a.agent.localeCompare(b.agent));
+  })();
+
   const citySummary = (() => {
     const summary = {};
     shipments.forEach((s) => {
@@ -1117,6 +1135,7 @@ function App() {
   const totalCost = shipments.reduce((sum, s) => sum + Number(s.shippingCharge || 0), 0);
   const maxCount = Math.max(...companySummary.map((c) => c.count), 1);
   const maxClientCount = Math.max(...clientSummary.map((c) => c.count), 1);
+  const maxAgentCount = Math.max(...agentSummary.map((c) => c.count), 1);
   const maxCityCount = Math.max(...citySummary.map((c) => c.count), 1);
   const chartColors = [
     '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981',
@@ -1645,6 +1664,65 @@ function App() {
                 </div>
               ) : (
                 <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No client data for {selectedMonth}</p>
+              )}
+            </div>
+
+            <div ref={agentStatsRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
+              <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Shipments by Agent</h3>
+              {agentSummary.length > 0 ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <table style={{ width: '100%', fontSize: '12px' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                          <th style={{ textAlign: 'left', padding: '4px', fontWeight: '600' }}>Agent</th>
+                          <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Shipments</th>
+                          <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Total Cost</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {agentSummary.map((item, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '4px' }}>{item.agent}</td>
+                            <td style={{ textAlign: 'right', padding: '4px' }}>{item.count}</td>
+                            <td style={{ textAlign: 'right', padding: '4px' }}>
+                              ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div>
+                    <h4 style={{ fontSize: '12px', fontWeight: '600', marginBottom: '12px', color: '#475569' }}>Shipment Count by Agent</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {agentSummary.map((item, idx) => (
+                        <div key={idx}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', fontSize: '10px' }}>
+                            <span style={{ fontWeight: '600', color: '#475569' }}>{item.agent}</span>
+                            <span style={{ color: '#64748b' }}>{item.count}</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <div style={{ flex: 1, height: '20px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div
+                                style={{
+                                  width: `${(item.count / maxAgentCount) * 100}%`,
+                                  height: '100%',
+                                  background: chartColors[idx % chartColors.length],
+                                  borderRadius: '4px',
+                                  transition: 'width 0.3s ease',
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No agent data for {selectedMonth}</p>
               )}
             </div>
 
