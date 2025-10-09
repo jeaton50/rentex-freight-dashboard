@@ -221,21 +221,22 @@ function App() {
   }, []);
 
   // Helper to build a default row
-const buildDefaultShipment = () => ({
-  id: Date.now(),
-  refNum: '',
-  shipDate: '',
-  returnDate: '',
-  location: locations?.[0] || '',
-  returnLocation: '',
-  city: '',              // <-- ADD THIS
-  company: companies?.[0] || '',
-  shipMethod: SHIP_METHODS[0],
-  vehicleType: VEHICLE_TYPES?.[0] || '', // if you have it
-  shippingCharge: 0,
-  po: '',
-  agent: agents?.[0] || '',
-});
+  const buildDefaultShipment = () => ({
+    id: Date.now(),
+    refNum: '',
+    client: '',                // <-- NEW
+    shipDate: '',
+    returnDate: '',
+    location: locations?.[0] || '',
+    returnLocation: '',
+    city: '',              // <-- existing
+    company: companies?.[0] || '',
+    shipMethod: SHIP_METHODS[0],
+    vehicleType: VEHICLE_TYPES?.[0] || '', // if you have it
+    shippingCharge: 0,
+    po: '',
+    agent: agents?.[0] || '',
+  });
 
 
   useEffect(() => {
@@ -480,11 +481,13 @@ const buildDefaultShipment = () => ({
   };
 
   const handleKeyDown = (e, rowIndex, field) => {
-   const fields = [
-  'refNum', 'shipDate', 'returnDate',
-  'location', 'returnLocation', 'city',  // <-- ADD "city" here
-  'company', 'shipMethod', 'shippingCharge', 'po', 'agent',
-];
+    const fields = [
+      'refNum', 'client',                 // <-- client right after refNum
+      'shipDate', 'returnDate',
+      'location', 'returnLocation', 'city',
+      'company', 'shipMethod', 'vehicleType',
+      'shippingCharge', 'po', 'agent',
+    ];
 
     const currentIndex = fields.indexOf(field);
 
@@ -536,7 +539,7 @@ const buildDefaultShipment = () => ({
     setShipments(updatedShipments);
     saveToFirebase(updatedShipments);
     setTimeout(() => {
-      handleCellClick(updatedShipments.length - 1, 'refNum');
+      handleCellClick(updatedShipments.length - 1, 'refNum'); // or 'client' if preferred
     }, 300);
   };
 
@@ -651,6 +654,7 @@ const buildDefaultShipment = () => ({
 
   const excelColumns = [
     { header: 'Reference #', key: 'refNum' },
+    { header: 'Client', key: 'client' },              // <-- NEW
     { header: 'Ship Date', key: 'shipDate' },
     { header: 'Return Date', key: 'returnDate' },
     { header: 'Location', key: 'location' },
@@ -667,18 +671,18 @@ const buildDefaultShipment = () => ({
   const mapRowsForExcel = (rows) =>
     rows.map((s) => ({
       refNum: s.refNum ?? '',
+      client: s.client ?? '',                // <-- NEW
       shipDate: s.shipDate ?? '',
       returnDate: s.returnDate ?? '',
       location: s.location ?? '',
       returnLocation: s.returnLocation ?? '',
-	  city: s.city ?? '',
+      city: s.city ?? '',
       company: s.company ?? '',
       shipMethod: s.shipMethod ?? '',
       vehicleType: s.vehicleType ?? '',
       shippingCharge: Number(s.shippingCharge || 0),
       po: s.po ?? '',
       agent: s.agent ?? '',
-      
     }));
 
   const buildDataSheetPretty = (wb, title, rows) => {
@@ -696,53 +700,48 @@ const buildDefaultShipment = () => ({
     return sheet;
   };
 
-// Creates a single flat table (all months) for Power BI
-const buildAllRowsSheet = (wb, year, monthToRowsMap) => {
-  const sheet = wb.addWorksheet('All Rows', { views: [{ state: 'frozen', ySplit: 1 }] });
+  // Creates a single flat table (all months) for Power BI
+  const buildAllRowsSheet = (wb, year, monthToRowsMap) => {
+    console.log('Building All Rows sheet...');
+    const sheet = wb.addWorksheet('All Rows', { views: [{ state: 'frozen', ySplit: 1 }] });
 
-  sheet.columns = [
-    { header: 'Year', key: 'year' },
-    { header: 'Month', key: 'month' },
-    { header: 'Reference #', key: 'refNum' },
-    { header: 'Ship Date', key: 'shipDate' },
-    { header: 'Return Date', key: 'returnDate' },
-    { header: 'Location', key: 'location' },
-    { header: 'Return Location', key: 'returnLocation' },
-    { header: 'City', key: 'city' },  // ← ADDED CITY
-    { header: 'Company', key: 'company' },
-    { header: 'Ship Method', key: 'shipMethod' },
-    { header: 'Vehicle Type', key: 'vehicleType' },
-    { header: 'Charges', key: 'shippingCharge' },
-    { header: 'PO', key: 'po' },
-    { header: 'Agent', key: 'agent' },
-  ];
+    sheet.columns = [
+      { header: 'Year', key: 'year' },
+      { header: 'Month', key: 'month' },
+      { header: 'Reference #', key: 'refNum' },
+      { header: 'Client', key: 'client' },           // <-- NEW
+      { header: 'Ship Date', key: 'shipDate' },
+      { header: 'Return Date', key: 'returnDate' },
+      { header: 'Location', key: 'location' },
+      { header: 'Return Location', key: 'returnLocation' },
+      { header: 'City', key: 'city' },
+      { header: 'Company', key: 'company' },
+      { header: 'Ship Method', key: 'shipMethod' },
+      { header: 'Vehicle Type', key: 'vehicleType' },
+      { header: 'Charges', key: 'shippingCharge' },
+      { header: 'PO', key: 'po' },
+      { header: 'Agent', key: 'agent' },
+    ];
 
-  sheet.getRow(1).font = { bold: true };
+    sheet.getRow(1).font = { bold: true };
+    sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
 
-  // Use MONTHS array instead of Object.keys for proper ordering
-  let totalRows = 0;
-  MONTHS.forEach(m => {
-    const rows = monthToRowsMap[m];
-    if (!rows || rows.length === 0) {
-      console.log(`${m}: no data`);
-      return;
-    }
-    
-    console.log(`${m}: ${rows.length} rows`);
-    rows.forEach(r => {
-      sheet.addRow({ year, month: m, ...r });
-      totalRows++;
+    let totalRows = 0;
+    MONTHS.forEach(m => {
+      const rows = monthToRowsMap[m] || [];
+      console.log(`Adding ${rows.length} rows for ${m}`);
+      rows.forEach(r => {
+        sheet.addRow({ year, month: m, ...r });
+        totalRows++;
+      });
     });
-  });
 
-  console.log(`✓ All Rows sheet: ${totalRows} total rows added`);
+    sheet.getColumn('shippingCharge').numFmt = '$#,##0.00';
+    autosizeColumns(sheet, { min: 10, max: 40, buffer: 2 });
 
-  // Format
-  sheet.getColumn('shippingCharge').numFmt = '$#,##0.00';
-  autosizeColumns(sheet, { min: 10, max: 40, buffer: 2 });
-
-  return sheet;
-};
+    console.log(`All Rows sheet complete: ${totalRows} total rows`);
+    return sheet;
+  };
 
   const downloadBlob = (blob, filename) => {
     const url = URL.createObjectURL(blob);
@@ -869,52 +868,61 @@ const buildAllRowsSheet = (wb, year, monthToRowsMap) => {
   };
 
   const exportAllMonthsExcel = async () => {
-  const wb = new ExcelJS.Workbook();
-  const monthToRowsMap = {};
+    try {
+      const wb = new ExcelJS.Workbook();
+      const monthToRowsMap = {};
 
-  // Collect data from all months
-  for (const month of MONTHS) {
-    const docSnap = await getDoc(monthDocRef(selectedYear, month));
-    const list = docSnap.exists() ? docSnap.data().shipments || [] : [];
-    const rows = mapRowsForExcel(list);
-    
-    // Store for flat table
-    monthToRowsMap[month] = rows;
-    
-    // Create individual month sheets
-    buildDataSheetPretty(wb, `${month} ${selectedYear}`, rows);
-  }
+      // Collect data from all months
+      console.log('Starting export...');
+      for (const month of MONTHS) {
+        const docSnap = await getDoc(monthDocRef(selectedYear, month));
+        const list = docSnap.exists() ? docSnap.data().shipments || [] : [];
+        const rows = mapRowsForExcel(list);
+        
+        monthToRowsMap[month] = rows;
+        console.log(`${month}: ${rows.length} rows collected`);
+        
+        // Create individual month sheets
+        buildDataSheetPretty(wb, `${month} ${selectedYear}`, rows);
+      }
 
-  // Debug: check if we have data
-  console.log('Month data collected:', Object.keys(monthToRowsMap).length, 'months');
-  const totalRecords = Object.values(monthToRowsMap).flat().length;
-  console.log('Total records:', totalRecords);
+      // Debug totals
+      const totalRecords = Object.values(monthToRowsMap).reduce((sum, rows) => sum + rows.length, 0);
+      console.log(`Total records across all months: ${totalRecords}`);
 
-  // Create the flat Power BI table
-  buildAllRowsSheet(wb, selectedYear, monthToRowsMap);
+      // Create the flat Power BI table BEFORE writing buffer
+      console.log('Creating All Rows sheet...');
+      buildAllRowsSheet(wb, selectedYear, monthToRowsMap);
+      console.log(`Workbook now has ${wb.worksheets.length} worksheets`);
 
-  const buf = await wb.xlsx.writeBuffer();
-  downloadBlob(
-    new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-    `freight-${selectedYear}-all-months-${new Date().toISOString().split('T')[0]}.xlsx`
-  );
-};
-
+      // Write and download
+      const buf = await wb.xlsx.writeBuffer();
+      downloadBlob(
+        new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+        `freight-${selectedYear}-all-months-${new Date().toISOString().split('T')[0]}.xlsx`
+      );
+      
+      console.log('Export complete!');
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert(`Export failed: ${error.message}`);
+    }
+  };
 
   const headerKeyMap = {
     'reference #': 'refNum',
+    'client': 'client',                 // <-- NEW
     'ship date': 'shipDate',
     'return date': 'returnDate',
     'location': 'location',
     'return location': 'returnLocation',
-	'city': 'city',
+    'city': 'city',
     'company': 'company',
     'ship method': 'shipMethod',
     'vehicle type': 'vehicleType',
     'charges': 'shippingCharge',
     'po': 'po',
     'agent': 'agent',
-    
   };
 
   const parseSheetToShipments = (sheet) => {
@@ -937,18 +945,18 @@ const buildAllRowsSheet = (wb, year, monthToRowsMap) => {
       const s = {
         id: Date.now() + r,
         refNum: '',
+        client: '',                 // <-- NEW
         shipDate: '',
         returnDate: '',
         location: '',
         returnLocation: '',
-		city: '',
+        city: '',
         company: '',
         shipMethod: '',
         vehicleType: '',
         shippingCharge: 0,
         po: '',
         agent: '',
-        
       };
 
       row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
@@ -980,7 +988,7 @@ const buildAllRowsSheet = (wb, year, monthToRowsMap) => {
         };
 
         if (key === 'shippingCharge') {
-          const num = typeof val === 'number' ? val : Number(String(val).replace(/[^0-9.\-]/g, ''));
+          const num = typeof val === 'number' ? val : Number(String(val).replace(/[^0-9.-]/g, ''));
           s.shippingCharge = isNaN(num) ? 0 : num;
         } else if (key === 'shipDate' || key === 'returnDate') {
           setDateSafely(val, key);
@@ -1551,6 +1559,7 @@ const buildAllRowsSheet = (wb, year, monthToRowsMap) => {
               <thead style={{ background: '#f1f5f9' }}>
                 <tr>
                   <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>REFERENCE #</th>
+                  <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>CLIENT</th> {/* NEW */}
                   <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>SHIP DATE</th>
                   <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>RETURN DATE</th>
                   <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>LOCATION</th>
@@ -1570,6 +1579,7 @@ const buildAllRowsSheet = (wb, year, monthToRowsMap) => {
                   shipments.map((shipment, idx) => (
                     <tr key={shipment.id} style={{ background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
                       <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(idx, 'refNum', shipment.refNum)}</td>
+                      <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(idx, 'client', shipment.client || '')}</td> {/* NEW */}
                       <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(idx, 'shipDate', shipment.shipDate)}</td>
                       <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(idx, 'returnDate', shipment.returnDate)}</td>
                       <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(idx, 'location', shipment.location)}</td>
@@ -1595,7 +1605,7 @@ const buildAllRowsSheet = (wb, year, monthToRowsMap) => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="13" style={{ border: '1px solid #cbd5e1', padding: '40px', textAlign: 'center', color: '#64748b', fontSize: '14px' }}>
+                    <td colSpan="14" style={{ border: '1px solid #cbd5e1', padding: '40px', textAlign: 'center', color: '#64748b', fontSize: '14px' }}>
                       No shipments for {selectedMonth}. {isYTD ? 'YTD aggregates all months.' : 'Click "Add Row" to start entering data.'}
                     </td>
                   </tr>

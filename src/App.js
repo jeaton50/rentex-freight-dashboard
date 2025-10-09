@@ -150,7 +150,10 @@ function App() {
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef(null);
 
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+
   const costPerCompanyRef = useRef(null);
+  const clientStatsRef = useRef(null);
   const shipmentCountRef = useRef(null);
   const revenueDistRef = useRef(null);
   const cityStatsRef = useRef(null);
@@ -220,24 +223,22 @@ function App() {
     return () => unsub();
   }, []);
 
-  // Helper to build a default row
   const buildDefaultShipment = () => ({
     id: Date.now(),
     refNum: '',
-    client: '',                // <-- NEW
+    client: '',
     shipDate: '',
     returnDate: '',
     location: locations?.[0] || '',
     returnLocation: '',
-    city: '',              // <-- existing
+    city: '',
     company: companies?.[0] || '',
     shipMethod: SHIP_METHODS[0],
-    vehicleType: VEHICLE_TYPES?.[0] || '', // if you have it
+    vehicleType: VEHICLE_TYPES?.[0] || '',
     shippingCharge: 0,
     po: '',
     agent: agents?.[0] || '',
   });
-
 
   useEffect(() => {
     const initializeMonths = async () => {
@@ -482,7 +483,7 @@ function App() {
 
   const handleKeyDown = (e, rowIndex, field) => {
     const fields = [
-      'refNum', 'client',                 // <-- client right after refNum
+      'refNum', 'client',
       'shipDate', 'returnDate',
       'location', 'returnLocation', 'city',
       'company', 'shipMethod', 'vehicleType',
@@ -539,7 +540,7 @@ function App() {
     setShipments(updatedShipments);
     saveToFirebase(updatedShipments);
     setTimeout(() => {
-      handleCellClick(updatedShipments.length - 1, 'refNum'); // or 'client' if preferred
+      handleCellClick(updatedShipments.length - 1, 'refNum');
     }, 300);
   };
 
@@ -654,7 +655,7 @@ function App() {
 
   const excelColumns = [
     { header: 'Reference #', key: 'refNum' },
-    { header: 'Client', key: 'client' },              // <-- NEW
+    { header: 'Client', key: 'client' },
     { header: 'Ship Date', key: 'shipDate' },
     { header: 'Return Date', key: 'returnDate' },
     { header: 'Location', key: 'location' },
@@ -671,7 +672,7 @@ function App() {
   const mapRowsForExcel = (rows) =>
     rows.map((s) => ({
       refNum: s.refNum ?? '',
-      client: s.client ?? '',                // <-- NEW
+      client: s.client ?? '',
       shipDate: s.shipDate ?? '',
       returnDate: s.returnDate ?? '',
       location: s.location ?? '',
@@ -700,7 +701,6 @@ function App() {
     return sheet;
   };
 
-  // Creates a single flat table (all months) for Power BI
   const buildAllRowsSheet = (wb, year, monthToRowsMap) => {
     console.log('Building All Rows sheet...');
     const sheet = wb.addWorksheet('All Rows', { views: [{ state: 'frozen', ySplit: 1 }] });
@@ -709,7 +709,7 @@ function App() {
       { header: 'Year', key: 'year' },
       { header: 'Month', key: 'month' },
       { header: 'Reference #', key: 'refNum' },
-      { header: 'Client', key: 'client' },           // <-- NEW
+      { header: 'Client', key: 'client' },
       { header: 'Ship Date', key: 'shipDate' },
       { header: 'Return Date', key: 'returnDate' },
       { header: 'Location', key: 'location' },
@@ -797,10 +797,11 @@ function App() {
     const capture = async (node) =>
       node ? await toPng(node, { cacheBust: true, backgroundColor: 'white', pixelRatio: 2 }) : null;
 
-    const [imgCostPerCompany, imgShipmentCount, imgRevenueDist, imgCityStats] = await Promise.all([
+    const [imgCostPerCompany, imgShipmentCount, imgRevenueDist, imgClientStats, imgCityStats] = await Promise.all([
       capture(costPerCompanyRef.current),
       capture(shipmentCountRef.current),
       capture(revenueDistRef.current),
+      capture(clientStatsRef.current),
       capture(cityStatsRef.current),
     ]);
 
@@ -858,7 +859,8 @@ function App() {
     addImg(imgCostPerCompany, 2, 0, 900, 350);
     addImg(imgShipmentCount, 18, 0, 900, 350);
     addImg(imgRevenueDist, 34, 0, 900, 350);
-    addImg(imgCityStats, 50, 0, 900, 350);
+    addImg(imgClientStats, 50, 0, 900, 350);
+    addImg(imgCityStats, 66, 0, 900, 350);
 
     const buf = await wb.xlsx.writeBuffer();
     downloadBlob(
@@ -872,7 +874,6 @@ function App() {
       const wb = new ExcelJS.Workbook();
       const monthToRowsMap = {};
 
-      // Collect data from all months
       console.log('Starting export...');
       for (const month of MONTHS) {
         const docSnap = await getDoc(monthDocRef(selectedYear, month));
@@ -882,20 +883,16 @@ function App() {
         monthToRowsMap[month] = rows;
         console.log(`${month}: ${rows.length} rows collected`);
         
-        // Create individual month sheets
         buildDataSheetPretty(wb, `${month} ${selectedYear}`, rows);
       }
 
-      // Debug totals
       const totalRecords = Object.values(monthToRowsMap).reduce((sum, rows) => sum + rows.length, 0);
       console.log(`Total records across all months: ${totalRecords}`);
 
-      // Create the flat Power BI table BEFORE writing buffer
       console.log('Creating All Rows sheet...');
       buildAllRowsSheet(wb, selectedYear, monthToRowsMap);
       console.log(`Workbook now has ${wb.worksheets.length} worksheets`);
 
-      // Write and download
       const buf = await wb.xlsx.writeBuffer();
       downloadBlob(
         new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
@@ -911,7 +908,7 @@ function App() {
 
   const headerKeyMap = {
     'reference #': 'refNum',
-    'client': 'client',                 // <-- NEW
+    'client': 'client',
     'ship date': 'shipDate',
     'return date': 'returnDate',
     'location': 'location',
@@ -945,7 +942,7 @@ function App() {
       const s = {
         id: Date.now() + r,
         refNum: '',
-        client: '',                 // <-- NEW
+        client: '',
         shipDate: '',
         returnDate: '',
         location: '',
@@ -1073,6 +1070,21 @@ function App() {
       .sort((a, b) => b.total - a.total);
   })();
 
+  const clientSummary = (() => {
+    const summary = {};
+    shipments.forEach((s) => {
+      if (s.client && s.client.trim() !== '') {
+        const key = s.client;
+        if (!summary[key]) summary[key] = { count: 0, total: 0 };
+        summary[key].count += 1;
+        summary[key].total += Number(s.shippingCharge || 0);
+      }
+    });
+    return Object.entries(summary)
+      .map(([client, data]) => ({ client, ...data }))
+      .sort((a, b) => a.client.localeCompare(b.client));
+  })();
+
   const citySummary = (() => {
     const summary = {};
     shipments.forEach((s) => {
@@ -1085,16 +1097,63 @@ function App() {
     });
     return Object.entries(summary)
       .map(([city, data]) => ({ city, ...data }))
-      .sort((a, b) => b.total - a.total);
+      .sort((a, b) => a.city.localeCompare(b.city));
   })();
 
   const totalCost = shipments.reduce((sum, s) => sum + Number(s.shippingCharge || 0), 0);
   const maxCount = Math.max(...companySummary.map((c) => c.count), 1);
+  const maxClientCount = Math.max(...clientSummary.map((c) => c.count), 1);
   const maxCityCount = Math.max(...citySummary.map((c) => c.count), 1);
   const chartColors = [
     '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981',
     '#06b6d4', '#6366f1', '#f97316', '#14b8a6', '#f43f5e',
   ];
+
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const sortedShipments = React.useMemo(() => {
+    if (!sortConfig.key) return shipments;
+
+    const sorted = [...shipments].sort((a, b) => {
+      const aVal = a[sortConfig.key] ?? '';
+      const bVal = b[sortConfig.key] ?? '';
+
+      if (sortConfig.key === 'shippingCharge') {
+        const aNum = Number(aVal);
+        const bNum = Number(bVal);
+        return sortConfig.direction === 'asc' ? aNum - bNum : bNum - aNum;
+      }
+
+      if (sortConfig.key === 'shipDate' || sortConfig.key === 'returnDate') {
+        const aDate = aVal ? new Date(aVal).getTime() : 0;
+        const bDate = bVal ? new Date(bVal).getTime() : 0;
+        return sortConfig.direction === 'asc' ? aDate - bDate : bDate - aDate;
+      }
+
+      const aStr = String(aVal).toLowerCase();
+      const bStr = String(bVal).toLowerCase();
+      if (sortConfig.direction === 'asc') {
+        return aStr.localeCompare(bStr);
+      } else {
+        return bStr.localeCompare(aStr);
+      }
+    });
+
+    return sorted;
+  }, [shipments, sortConfig]);
+
+  const getSortIcon = (columnKey) => {
+    if (sortConfig.key !== columnKey) {
+      return ' ⇅';
+    }
+    return sortConfig.direction === 'asc' ? ' ▲' : ' ▼';
+  };
 
   const renderCell = (rowIndex, field, value) => {
     if (isYTD) {
@@ -1198,12 +1257,10 @@ function App() {
     );
   };
 
-  // Show login screen if not authenticated (AFTER all hooks)
   if (!isAuthenticated) {
     return <PasswordLogin onLogin={handleLogin} />;
   }
 
-  // Main app render
   return (
     <div style={{ minHeight: '100vh', background: 'white' }}>
       <div style={{ maxWidth: '98%', margin: '0 auto', padding: '16px' }}>
@@ -1484,6 +1541,65 @@ function App() {
           )}
         </div>
 
+        <div ref={clientStatsRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
+          <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Shipments by Client</h3>
+          {clientSummary.length > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div>
+                <table style={{ width: '100%', fontSize: '12px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <th style={{ textAlign: 'left', padding: '4px', fontWeight: '600' }}>Client</th>
+                      <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Shipments</th>
+                      <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Total Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {clientSummary.map((item, idx) => (
+                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '4px' }}>{item.client}</td>
+                        <td style={{ textAlign: 'right', padding: '4px' }}>{item.count}</td>
+                        <td style={{ textAlign: 'right', padding: '4px' }}>
+                          ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div>
+                <h4 style={{ fontSize: '12px', fontWeight: '600', marginBottom: '12px', color: '#475569' }}>Shipment Count by Client</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {clientSummary.map((item, idx) => (
+                    <div key={idx}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', fontSize: '10px' }}>
+                        <span style={{ fontWeight: '600', color: '#475569' }}>{item.client}</span>
+                        <span style={{ color: '#64748b' }}>{item.count}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <div style={{ flex: 1, height: '20px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                          <div
+                            style={{
+                              width: `${(item.count / maxClientCount) * 100}%`,
+                              height: '100%',
+                              background: chartColors[idx % chartColors.length],
+                              borderRadius: '4px',
+                              transition: 'width 0.3s ease',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No client data for {selectedMonth}</p>
+          )}
+        </div>
+
         <div ref={cityStatsRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
           <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Shipments by City</h3>
           {citySummary.length > 0 ? (
@@ -1558,51 +1674,80 @@ function App() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead style={{ background: '#f1f5f9' }}>
                 <tr>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>REFERENCE #</th>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>CLIENT</th> {/* NEW */}
-                  <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>SHIP DATE</th>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>RETURN DATE</th>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>LOCATION</th>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>RETURN LOCATION</th>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>CITY</th>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>COMPANY</th>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>SHIP METHOD</th>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>VEHICLE TYPE</th>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>CHARGES</th>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>PO</th>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>AGENT</th>
+                  <th onClick={() => handleSort('refNum')} style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>
+                    REFERENCE #{getSortIcon('refNum')}
+                  </th>
+                  <th onClick={() => handleSort('client')} style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>
+                    CLIENT{getSortIcon('client')}
+                  </th>
+                  <th onClick={() => handleSort('shipDate')} style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>
+                    SHIP DATE{getSortIcon('shipDate')}
+                  </th>
+                  <th onClick={() => handleSort('returnDate')} style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>
+                    RETURN DATE{getSortIcon('returnDate')}
+                  </th>
+                  <th onClick={() => handleSort('location')} style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>
+                    LOCATION{getSortIcon('location')}
+                  </th>
+                  <th onClick={() => handleSort('returnLocation')} style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>
+                    RETURN LOCATION{getSortIcon('returnLocation')}
+                  </th>
+                  <th onClick={() => handleSort('city')} style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>
+                    CITY{getSortIcon('city')}
+                  </th>
+                  <th onClick={() => handleSort('company')} style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>
+                    COMPANY{getSortIcon('company')}
+                  </th>
+                  <th onClick={() => handleSort('shipMethod')} style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>
+                    SHIP METHOD{getSortIcon('shipMethod')}
+                  </th>
+                  <th onClick={() => handleSort('vehicleType')} style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>
+                    VEHICLE TYPE{getSortIcon('vehicleType')}
+                  </th>
+                  <th onClick={() => handleSort('shippingCharge')} style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>
+                    CHARGES{getSortIcon('shippingCharge')}
+                  </th>
+                  <th onClick={() => handleSort('po')} style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>
+                    PO{getSortIcon('po')}
+                  </th>
+                  <th onClick={() => handleSort('agent')} style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>
+                    AGENT{getSortIcon('agent')}
+                  </th>
                   <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>ACTION</th>
                 </tr>
               </thead>
               <tbody>
-                {shipments.length > 0 ? (
-                  shipments.map((shipment, idx) => (
-                    <tr key={shipment.id} style={{ background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
-                      <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(idx, 'refNum', shipment.refNum)}</td>
-                      <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(idx, 'client', shipment.client || '')}</td> {/* NEW */}
-                      <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(idx, 'shipDate', shipment.shipDate)}</td>
-                      <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(idx, 'returnDate', shipment.returnDate)}</td>
-                      <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(idx, 'location', shipment.location)}</td>
-                      <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(idx, 'returnLocation', shipment.returnLocation)}</td>
-                      <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(idx, 'city', shipment.city || '')}</td>
-                      <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(idx, 'company', shipment.company)}</td>
-                      <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(idx, 'shipMethod', shipment.shipMethod)}</td>
-                      <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(idx, 'vehicleType', shipment.vehicleType)}</td>
-                      <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(idx, 'shippingCharge', shipment.shippingCharge)}</td>
-                      <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(idx, 'po', shipment.po)}</td>
-                      <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(idx, 'agent', shipment.agent)}</td>
-                      <td style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'center' }}>
-                        <button
-                          onClick={() => handleDeleteRow(idx)}
-                          disabled={isYTD}
-                          style={{ color: isYTD ? '#94a3b8' : '#dc2626', background: 'none', border: 'none', cursor: isYTD ? 'not-allowed' : 'pointer', fontSize: '16px' }}
-                          title={isYTD ? 'YTD view: delete disabled' : 'Delete'}
-                        >
-                          🗑️
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                {sortedShipments.length > 0 ? (
+                  sortedShipments.map((shipment, idx) => {
+                    const originalIndex = shipments.findIndex(s => s.id === shipment.id);
+                    return (
+                      <tr key={shipment.id} style={{ background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
+                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'refNum', shipment.refNum)}</td>
+                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'client', shipment.client || '')}</td>
+                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'shipDate', shipment.shipDate)}</td>
+                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'returnDate', shipment.returnDate)}</td>
+                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'location', shipment.location)}</td>
+                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'returnLocation', shipment.returnLocation)}</td>
+                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'city', shipment.city || '')}</td>
+                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'company', shipment.company)}</td>
+                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'shipMethod', shipment.shipMethod)}</td>
+                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'vehicleType', shipment.vehicleType)}</td>
+                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'shippingCharge', shipment.shippingCharge)}</td>
+                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'po', shipment.po)}</td>
+                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'agent', shipment.agent)}</td>
+                        <td style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'center' }}>
+                          <button
+                            onClick={() => handleDeleteRow(originalIndex)}
+                            disabled={isYTD}
+                            style={{ color: isYTD ? '#94a3b8' : '#dc2626', background: 'none', border: 'none', cursor: isYTD ? 'not-allowed' : 'pointer', fontSize: '16px' }}
+                            title={isYTD ? 'YTD view: delete disabled' : 'Delete'}
+                          >
+                            🗑️
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
                     <td colSpan="14" style={{ border: '1px solid #cbd5e1', padding: '40px', textAlign: 'center', color: '#64748b', fontSize: '14px' }}>
@@ -1617,7 +1762,7 @@ function App() {
           <div style={{ padding: '16px', background: '#f8fafc', borderTop: '1px solid #cbd5e1', fontSize: '12px', color: '#64748b', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px' }}>
             <p>
               <strong>Tips:</strong> {isYTD ? 'YTD rows are read-only • Use "Edit to month" + Add Row to add to a month • ' : ''}
-              Click any cell to edit • Press{' '}
+              Click column headers to sort • Click any cell to edit • Press{' '}
               <kbd style={{ padding: '2px 6px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '11px' }}>Enter</kbd>
               {' '}to move down • Press{' '}
               <kbd style={{ padding: '2px 6px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '11px' }}>Tab</kbd>
