@@ -1465,25 +1465,28 @@ const handleBulkAdd = async () => {
             Enter one {bulkAddModal.type} per line. Duplicates will be automatically skipped.
           </p>
           
-          <textarea
-            value={bulkAddModal.items}
-            onChange={(e) => setBulkAddModal({ ...bulkAddModal, items: e.target.value })}
-            placeholder={`Example:\n${bulkAddModal.type === 'client' ? 'Acme Corp\nGlobal Industries\nTech Solutions' : bulkAddModal.type === 'city' ? 'Seattle\nPortland\nDenver' : bulkAddModal.type === 'agent' ? 'John Doe\nJane Smith' : bulkAddModal.type === 'company' ? 'FEDEX\nUPS\nDHL' : 'Location 1\nLocation 2'}`}
-            style={{
-              width: '100%',
-              minHeight: '200px',
-              padding: '12px',
-              border: '1px solid #cbd5e1',
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontFamily: 'monospace',
-              marginBottom: '16px',
-              resize: 'vertical',
-			  direction: 'ltr',  // ADD THIS LINE
-			  textAlign: 'left', // ADD THIS LINE TOO
-            }}
-            autoFocus
-          />
+         <textarea
+  value={bulkAddModal.items}
+  onChange={(e) => setBulkAddModal({ ...bulkAddModal, items: e.target.value })}
+  placeholder={`Example:\n${bulkAddModal.type === 'client' ? 'Acme Corp\nGlobal Industries\nTech Solutions' : bulkAddModal.type === 'city' ? 'Seattle\nPortland\nDenver' : bulkAddModal.type === 'agent' ? 'John Doe\nJane Smith' : bulkAddModal.type === 'company' ? 'FEDEX\nUPS\nDHL' : 'Location 1\nLocation 2'}`}
+  dir="ltr"
+  style={{
+    width: '100%',
+    minHeight: '200px',
+    padding: '12px',
+    border: '1px solid #cbd5e1',
+    borderRadius: '8px',
+    fontSize: '13px',
+    fontFamily: 'monospace',
+    marginBottom: '16px',
+    resize: 'vertical',
+    direction: 'ltr !important',
+    unicodeBidi: 'normal',
+    textAlign: 'left',
+    writingMode: 'horizontal-tb',
+  }}
+  autoFocus
+/>
           
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
             <button
