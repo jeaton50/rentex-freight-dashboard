@@ -517,34 +517,34 @@ function App() {
   };
 
   const handleAddRow = async () => {
-    if (isYTD) {
-      try {
-        const targetRef = monthDocRef(selectedYear, editTargetMonth);
-        const snap = await getDoc(targetRef);
-        const existing = snap.exists() ? (snap.data().shipments || []) : [];
-        const updated = [buildDefaultShipment(), ...existing]; // Add at the top
-        await setDoc(targetRef, {
-          shipments: updated,
-          lastModified: new Date().toISOString(),
-          month: editTargetMonth,
-          year: selectedYear,
-        });
-        alert(`Row added to ${editTargetMonth} ${selectedYear}.`);
-      } catch (e) {
-        console.error('Add row (YTD) failed:', e);
-        alert('Failed to add row to target month.');
-      }
-      return;
+  if (isYTD) {
+    try {
+      const targetRef = monthDocRef(selectedYear, editTargetMonth);
+      const snap = await getDoc(targetRef);
+      const existing = snap.exists() ? (snap.data().shipments || []) : [];
+      const updated = [buildDefaultShipment(), ...existing]; // CHANGED: Add at top
+      await setDoc(targetRef, {
+        shipments: updated,
+        lastModified: new Date().toISOString(),
+        month: editTargetMonth,
+        year: selectedYear,
+      });
+      alert(`Row added to ${editTargetMonth} ${selectedYear}.`);
+    } catch (e) {
+      console.error('Add row (YTD) failed:', e);
+      alert('Failed to add row to target month.');
     }
+    return;
+  }
 
-    const newShipment = buildDefaultShipment();
-    const updatedShipments = [newShipment, ...shipments]; // Add at the top
-    setShipments(updatedShipments);
-    saveToFirebase(updatedShipments);
-    setTimeout(() => {
-      handleCellClick(0, 'refNum'); // Focus on first row (index 0)
-    }, 300);
-  };
+  const newShipment = buildDefaultShipment();
+  const updatedShipments = [newShipment, ...shipments]; // CHANGED: Add at top
+  setShipments(updatedShipments);
+  saveToFirebase(updatedShipments);
+  setTimeout(() => {
+    handleCellClick(0, 'refNum'); // CHANGED: Focus on row 0 (top)
+  }, 300);
+};
 
   const handleDeleteRow = (index) => {
     if (isYTD) {
@@ -1151,43 +1151,43 @@ function App() {
   };
 
   const sortedShipments = React.useMemo(() => {
-    if (!sortConfig.key) return shipments;
+  if (!sortConfig.key) return shipments;
 
-    const sorted = [...shipments].sort((a, b) => {
-      const aVal = a[sortConfig.key] ?? '';
-      const bVal = b[sortConfig.key] ?? '';
+  const sorted = [...shipments].sort((a, b) => {
+    const aVal = a[sortConfig.key] ?? '';
+    const bVal = b[sortConfig.key] ?? '';
 
-      if (sortConfig.key === 'shippingCharge') {
-        const aNum = Number(aVal);
-        const bNum = Number(bVal);
-        return sortConfig.direction === 'asc' ? aNum - bNum : bNum - aNum;
-      }
+    if (sortConfig.key === 'shippingCharge') {
+      const aNum = Number(aVal);
+      const bNum = Number(bVal);
+      return sortConfig.direction === 'asc' ? aNum - bNum : bNum - aNum;
+    }
 
-      if (sortConfig.key === 'shipDate' || sortConfig.key === 'returnDate') {
-        // Handle blank dates - put them first
-        const aIsBlank = !aVal || aVal === '';
-        const bIsBlank = !bVal || bVal === '';
-        
-        if (aIsBlank && bIsBlank) return 0;
-        if (aIsBlank) return sortConfig.direction === 'asc' ? -1 : 1; // Blanks always first
-        if (bIsBlank) return sortConfig.direction === 'asc' ? 1 : -1; // Blanks always first
-        
-        const aDate = new Date(aVal).getTime();
-        const bDate = new Date(bVal).getTime();
-        return sortConfig.direction === 'asc' ? aDate - bDate : bDate - aDate;
-      }
+    if (sortConfig.key === 'shipDate' || sortConfig.key === 'returnDate') {
+      // CHANGED: Handle blank dates - put them first
+      const aIsBlank = !aVal || aVal === '';
+      const bIsBlank = !bVal || bVal === '';
+      
+      if (aIsBlank && bIsBlank) return 0;
+      if (aIsBlank) return -1; // Blanks always first
+      if (bIsBlank) return 1;  // Blanks always first
+      
+      const aDate = new Date(aVal).getTime();
+      const bDate = new Date(bVal).getTime();
+      return sortConfig.direction === 'asc' ? aDate - bDate : bDate - aDate;
+    }
 
-      const aStr = String(aVal).toLowerCase();
-      const bStr = String(bVal).toLowerCase();
-      if (sortConfig.direction === 'asc') {
-        return aStr.localeCompare(bStr);
-      } else {
-        return bStr.localeCompare(aStr);
-      }
-    });
+    const aStr = String(aVal).toLowerCase();
+    const bStr = String(bVal).toLowerCase();
+    if (sortConfig.direction === 'asc') {
+      return aStr.localeCompare(bStr);
+    } else {
+      return bStr.localeCompare(aStr);
+    }
+  });
 
-    return sorted;
-  }, [shipments, sortConfig]);
+  return sorted;
+}, [shipments, sortConfig]);
 
   const getSortIcon = (columnKey) => {
     if (sortConfig.key !== columnKey) {

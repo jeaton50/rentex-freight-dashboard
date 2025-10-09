@@ -522,7 +522,7 @@ function App() {
       const targetRef = monthDocRef(selectedYear, editTargetMonth);
       const snap = await getDoc(targetRef);
       const existing = snap.exists() ? (snap.data().shipments || []) : [];
-      const updated = [buildDefaultShipment(), ...existing]; // CHANGED: Add at top
+      const updated = [buildDefaultShipment(), ...existing]; // Add at the top
       await setDoc(targetRef, {
         shipments: updated,
         lastModified: new Date().toISOString(),
@@ -538,11 +538,11 @@ function App() {
   }
 
   const newShipment = buildDefaultShipment();
-  const updatedShipments = [newShipment, ...shipments]; // CHANGED: Add at top
+  const updatedShipments = [newShipment, ...shipments]; // Add at the top
   setShipments(updatedShipments);
   saveToFirebase(updatedShipments);
   setTimeout(() => {
-    handleCellClick(0, 'refNum'); // CHANGED: Focus on row 0 (top)
+    handleCellClick(0, 'refNum'); // Focus on first row (index 0)
   }, 300);
 };
 
