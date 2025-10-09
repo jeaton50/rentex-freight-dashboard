@@ -1433,11 +1433,12 @@ const handleBulkAdd = async () => {
     );
   };
 
-  const BulkAddModal = () => {
+ const BulkAddModal = () => {
   if (!bulkAddModal.open) return null;
 
   return createPortal(
     <div 
+      role="dialog" aria-modal="true"
       style={{
         position: 'fixed',
         top: 0,
@@ -1468,13 +1469,13 @@ const handleBulkAdd = async () => {
         <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' }}>
           Bulk Add {bulkAddModal.type.charAt(0).toUpperCase() + bulkAddModal.type.slice(1)}s
         </h3>
-        
+
         <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '12px' }}>
           Enter one {bulkAddModal.type} per line. Duplicates will be automatically skipped.
         </p>
-        
-        <input
-          type="text"
+
+        {/* textarea replaces input so text starts at the top-left */}
+        <textarea
           value={bulkAddModal.items}
           onChange={(e) => {
             console.log('Input value:', e.target.value); // Debug log
@@ -1483,7 +1484,7 @@ const handleBulkAdd = async () => {
           placeholder="Type here..."
           style={{
             width: '100%',
-            minHeight: '200px',
+            height: '200px',           // use height (or minHeight) with textarea
             padding: '12px',
             border: '1px solid #cbd5e1',
             borderRadius: '8px',
@@ -1491,10 +1492,13 @@ const handleBulkAdd = async () => {
             fontFamily: 'Arial, sans-serif',
             marginBottom: '16px',
             boxSizing: 'border-box',
+            resize: 'vertical',
+            lineHeight: 1.4,
           }}
           autoFocus
         />
         
+               
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
           <button
             onClick={() => setBulkAddModal({ open: false, type: '', items: '' })}
