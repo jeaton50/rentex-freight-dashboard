@@ -1257,6 +1257,7 @@ function App() {
       field === 'location' ||
       field === 'returnLocation' ||
       field === 'city' ||
+	  field === 'client' ||
       field === 'shipMethod' ||
       field === 'vehicleType';
 

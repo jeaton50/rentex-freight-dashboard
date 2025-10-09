@@ -1471,6 +1471,23 @@ function App() {
               </button>
             </div>
 
+<div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+  <input
+    type="text"
+    value={newClient}
+    placeholder="Add client…"
+    onChange={(e) => setNewClient(e.target.value)}
+    onKeyDown={(e) => { if (e.key === 'Enter') addClientGlobal(); }}
+    style={{ padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', minWidth: 180 }}
+  />
+  <button
+    onClick={addClientGlobal}
+    style={{ padding: '8px 12px', background: '#db2777', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
+  >
+    + Add Client
+  </button>
+</div>
+
             <button
               onClick={exportMonthExcel}
               style={{ padding: '8px 12px', background: '#166534', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
