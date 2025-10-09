@@ -522,7 +522,7 @@ function App() {
         const targetRef = monthDocRef(selectedYear, editTargetMonth);
         const snap = await getDoc(targetRef);
         const existing = snap.exists() ? (snap.data().shipments || []) : [];
-        const updated = [...existing, buildDefaultShipment()];
+        const updated = [buildDefaultShipment(), ...existing]; // Add at the top
         await setDoc(targetRef, {
           shipments: updated,
           lastModified: new Date().toISOString(),
@@ -538,11 +538,11 @@ function App() {
     }
 
     const newShipment = buildDefaultShipment();
-    const updatedShipments = [...shipments, newShipment];
+    const updatedShipments = [newShipment, ...shipments]; // Add at the top
     setShipments(updatedShipments);
     saveToFirebase(updatedShipments);
     setTimeout(() => {
-      handleCellClick(updatedShipments.length - 1, 'refNum');
+      handleCellClick(0, 'refNum'); // Focus on first row (index 0)
     }, 300);
   };
 
@@ -1164,8 +1164,16 @@ function App() {
       }
 
       if (sortConfig.key === 'shipDate' || sortConfig.key === 'returnDate') {
-        const aDate = aVal ? new Date(aVal).getTime() : 0;
-        const bDate = bVal ? new Date(bVal).getTime() : 0;
+        // Handle blank dates - put them first
+        const aIsBlank = !aVal || aVal === '';
+        const bIsBlank = !bVal || bVal === '';
+        
+        if (aIsBlank && bIsBlank) return 0;
+        if (aIsBlank) return sortConfig.direction === 'asc' ? -1 : 1; // Blanks always first
+        if (bIsBlank) return sortConfig.direction === 'asc' ? 1 : -1; // Blanks always first
+        
+        const aDate = new Date(aVal).getTime();
+        const bDate = new Date(bVal).getTime();
         return sortConfig.direction === 'asc' ? aDate - bDate : bDate - aDate;
       }
 
@@ -1514,7 +1522,7 @@ function App() {
                     </thead>
                     <tbody>
                       {companySummary.map((item, idx) => (
-                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
+                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                           <td style={{ padding: '4px' }}>{item.company}</td>
                           <td style={{ textAlign: 'right', padding: '4px' }}>
                             ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
