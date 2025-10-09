@@ -10,7 +10,7 @@ import PasswordLogin from './PasswordLogin';
 import './App.css';
 
 // ============================================
-// DEFAULTS (bootstrap Firestore config)
+// DEFAULTS (bootstrap Firestore config.)
 // ============================================
 const DEFAULT_COMPANIES = [
   'COWBOYS', 'CRANE', 'FLORIDA FREIGHT', 'KOL', 'PHOENIX FREIGHT',
@@ -1434,10 +1434,11 @@ const handleBulkAdd = async () => {
   };
 
   const BulkAddModal = () => {
-    if (!bulkAddModal.open) return null;
+  if (!bulkAddModal.open) return null;
 
-    return (
-      <div style={{
+  return createPortal(
+    <div 
+      style={{
         position: 'fixed',
         top: 0,
         left: 0,
@@ -1448,82 +1449,89 @@ const handleBulkAdd = async () => {
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 10000,
-      }}>
-        <div style={{
+        isolation: 'isolate',
+      }}
+      onClick={() => setBulkAddModal({ open: false, type: '', items: '' })}
+    >
+      <div 
+        style={{
           background: 'white',
           borderRadius: '12px',
           padding: '24px',
           width: '90%',
           maxWidth: '600px',
           boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-        }}>
-          <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' }}>
-            Bulk Add {bulkAddModal.type.charAt(0).toUpperCase() + bulkAddModal.type.slice(1)}s
-          </h3>
-          
-          <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '12px' }}>
-            Enter one {bulkAddModal.type} per line. Duplicates will be automatically skipped.
-          </p>
-          
-         <textarea
-  value={bulkAddModal.items}
-  onChange={(e) => setBulkAddModal({ ...bulkAddModal, items: e.target.value })}
-  placeholder={`Example:\n${bulkAddModal.type === 'client' ? 'Acme Corp\nGlobal Industries\nTech Solutions' : bulkAddModal.type === 'city' ? 'Seattle\nPortland\nDenver' : bulkAddModal.type === 'agent' ? 'John Doe\nJane Smith' : bulkAddModal.type === 'company' ? 'FEDEX\nUPS\nDHL' : 'Location 1\nLocation 2'}`}
-  dir="ltr"
-  style={{
-    width: '100%',
-    minHeight: '200px',
-    padding: '12px',
-    border: '1px solid #cbd5e1',
-    borderRadius: '8px',
-    fontSize: '13px',
-    fontFamily: 'monospace',
-    marginBottom: '16px',
-    resize: 'vertical',
-    direction: 'ltr !important',
-    unicodeBidi: 'normal',
-    textAlign: 'left',
-    writingMode: 'horizontal-tb',
-  }}
-  autoFocus
-/>
-          
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-            <button
-              onClick={() => setBulkAddModal({ open: false, type: '', items: '' })}
-              style={{
-                padding: '8px 16px',
-                background: '#e2e8f0',
-                color: '#475569',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '14px',
-                fontWeight: '600',
-                cursor: 'pointer',
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleBulkAdd}
-              style={{
-                padding: '8px 16px',
-                background: '#3b82f6',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '14px',
-                fontWeight: '600',
-                cursor: 'pointer',
-              }}
-            >
-              Add All
-            </button>
-          </div>
+          isolation: 'isolate',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' }}>
+          Bulk Add {bulkAddModal.type.charAt(0).toUpperCase() + bulkAddModal.type.slice(1)}s
+        </h3>
+        
+        <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '12px' }}>
+          Enter one {bulkAddModal.type} per line. Duplicates will be automatically skipped.
+        </p>
+        
+        <input
+          type="text"
+          value={bulkAddModal.items}
+          onChange={(e) => {
+            console.log('Input value:', e.target.value); // Debug log
+            setBulkAddModal({ ...bulkAddModal, items: e.target.value });
+          }}
+          placeholder="Type here..."
+          style={{
+            width: '100%',
+            minHeight: '200px',
+            padding: '12px',
+            border: '1px solid #cbd5e1',
+            borderRadius: '8px',
+            fontSize: '14px',
+            fontFamily: 'Arial, sans-serif',
+            marginBottom: '16px',
+            boxSizing: 'border-box',
+          }}
+          autoFocus
+        />
+        
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+          <button
+            onClick={() => setBulkAddModal({ open: false, type: '', items: '' })}
+            style={{
+              padding: '8px 16px',
+              background: '#e2e8f0',
+              color: '#475569',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: '600',
+              cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleBulkAdd}
+            style={{
+              padding: '8px 16px',
+              background: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: '600',
+              cursor: 'pointer',
+            }}
+          >
+            Add All
+          </button>
         </div>
       </div>
-    );
-  };
+    </div>,
+    document.body
+  );
+};
   
   if (!isAuthenticated) {
     return <PasswordLogin onLogin={handleLogin} />;
