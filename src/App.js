@@ -1623,7 +1623,7 @@ function App() {
                       </thead>
                       <tbody>
                         {clientSummary.map((item, idx) => (
-                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
                             <td style={{ padding: '4px' }}>{item.client}</td>
                             <td style={{ textAlign: 'right', padding: '4px' }}>{item.count}</td>
                             <td style={{ textAlign: 'right', padding: '4px' }}>
@@ -1682,7 +1682,7 @@ function App() {
                       </thead>
                       <tbody>
                         {agentSummary.map((item, idx) => (
-                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
                             <td style={{ padding: '4px' }}>{item.agent}</td>
                             <td style={{ textAlign: 'right', padding: '4px' }}>{item.count}</td>
                             <td style={{ textAlign: 'right', padding: '4px' }}>
@@ -1741,7 +1741,7 @@ function App() {
                       </thead>
                       <tbody>
                         {citySummary.map((item, idx) => (
-                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
                             <td style={{ padding: '4px' }}>{item.city}</td>
                             <td style={{ textAlign: 'right', padding: '4px' }}>{item.count}</td>
                             <td style={{ textAlign: 'right', padding: '4px' }}>
