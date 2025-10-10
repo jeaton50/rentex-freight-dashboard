@@ -133,7 +133,7 @@ function App() {
   const [clients, setClients] = useState([]);
 
   
-  const [newAgent, setNewAgent] = useState('');
+
   const [newCity, setNewCity] = useState('');
   const [newClient, setNewClient] = useState('');
   const [bulkAddModal, setBulkAddModal] = useState({ open: false, type: '', items: '' });
@@ -565,40 +565,6 @@ function App() {
     if (window.confirm('Delete this shipment?')) {
       const updatedShipments = shipments.filter((_, i) => i !== index);
       saveToFirebase(updatedShipments);
-    }
-  };
-
-  
-  
-
-  const addAgentGlobal = async () => {
-    const raw = newAgent.trim();
-    if (!raw) return;
-    let candidate = raw.toUpperCase();
-    if (!candidate.includes('.')) {
-      const parts = candidate.split(/\s+/).filter(Boolean);
-      if (parts.length >= 2) {
-        const firstInitial = parts[0][0];
-        const last = parts.slice(1).join('').replace(/[^A-Z]/g, '');
-        candidate = `${firstInitial}.${last}`;
-      }
-    }
-    const exists = agents.some(a => a.toUpperCase() === candidate);
-    if (exists) {
-      alert(`"${candidate}" already exists.`);
-      return;
-    }
-    const next = [...agents, candidate].sort((a, b) =>
-      a.localeCompare(b, undefined, { sensitivity: 'base' })
-    );
-
-    try {
-      const cfgRef = doc(db, 'freight-config', 'global');
-      await setDoc(cfgRef, { agents: next, updatedAt: new Date().toISOString() }, { merge: true });
-      setNewAgent('');
-    } catch (e) {
-      console.error('Failed to add agent:', e);
-      alert('Failed to add agent. Check your permissions/rules.');
     }
   };
 
@@ -1599,21 +1565,24 @@ const handleBulkAdd = async () => {
             + Add Location
           </button>
 
-          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-            <input
-              type="text"
-              value={newAgent}
-              placeholder='Add agent… (e.g., "J.DOE" or "John Doe")'
-              onChange={(e) => setNewAgent(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') addAgentGlobal(); }}
-              style={{ padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', minWidth: 200 }}
-            />
-            <button
-              onClick={addAgentGlobal}
-              style={{ padding: '8px 12px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
-            >
-              + Add Agent
-            </button>
+          <button
+  onClick={() => setBulkAddModal({ open: true, type: 'agent', items: '' })}
+  style={{ 
+    padding: '8px 12px', 
+    background: '#1d4ed8', 
+    color: 'white', 
+    border: 'none', 
+    borderRadius: '8px', 
+    fontSize: '13px', 
+    fontWeight: '600', 
+    cursor: 'pointer' 
+  }}
+  title='Add agents (e.g., "J.DOE" or "John Doe" per line)'
+>
+  + Add Agent
+</button>
+			
+			
             <button
               onClick={() => setBulkAddModal({ open: true, type: 'agent', items: '' })}
               style={{ padding: '8px 12px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
