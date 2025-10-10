@@ -1608,8 +1608,24 @@ const handleBulkAdd = async () => {
               </div>
             )}
 
-           {/* Company (bulk only) */}
-<div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <input
+                type="text"
+                value={newCompany}
+                placeholder="Add company…"
+                onChange={(e) => setNewCompany(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') addCompanyGlobal(); }}
+                style={{ padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', minWidth: 180 }}
+              />
+              <button
+                onClick={addCompanyGlobal}
+                style={{ padding: '8px 12px', background: '#0f766e', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
+              >
+                + Add Company
+              </button>
+            
+
+{/* new bulk-add trigger */}
   <button
     onClick={() => setBulkAddModal({ open: true, type: 'company', items: '' })}
     style={{
@@ -1624,9 +1640,10 @@ const handleBulkAdd = async () => {
     }}
     title="Bulk add companies (one per line)"
   >
-    + Add Company
+    📋 Bulk
   </button>
 </div>
+
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
               <input
                 type="text"
@@ -1692,14 +1709,6 @@ const handleBulkAdd = async () => {
               >
                 + Add City
               </button>
-			  {/* City */}
-<button
-  onClick={() => setBulkAddModal({ open: true, type: 'city', items: '' })}
-  style={{ padding: '8px 12px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
-  title="Bulk add cities (one per line)"
->
-  📋 Bulk
-</button>
             </div>
 
 <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
