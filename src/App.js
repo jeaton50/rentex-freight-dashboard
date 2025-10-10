@@ -139,7 +139,6 @@ function App() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [filteredOptions, setFilteredOptions] = useState([]);
   const inputRef = useRef(null);
-  const cancelEditRef = useRef(false); // <-- add this line
   const isCanceling = useRef(false); // Add this line
   const [dropdownRect, setDropdownRect] = useState(null);
   const [lastSaved, setLastSaved] = useState(null);
@@ -473,33 +472,29 @@ function App() {
 
 const handleCellBlur = () => {
   setTimeout(() => {
-    if (!editingCell) return;
-
-    if (cancelEditRef.current) {
-      cancelEditRef.current = false;     // reset flag
-      setEditingCell(null);              // exit edit mode
-      setEditValue('');                  // discard temp value
+    // If canceling, just reset the flag and exit
+    if (isCanceling.current) {
+      isCanceling.current = false;
+      return;
+    }
+    
+    if (editingCell) {
+      const { rowIndex, field } = editingCell;
+      const newShipments = [...shipments];
+      if (field === 'shippingCharge') {
+        const numValue = parseFloat(editValue);
+        newShipments[rowIndex][field] = isNaN(numValue) ? 0 : numValue;
+      } else {
+        newShipments[rowIndex][field] = editValue;
+      }
+      saveToFirebase(newShipments);
+      setEditingCell(null);
+      setEditValue('');
       setShowDropdown(false);
       setDropdownRect(null);
-      return;                            // <-- skip saving
     }
-
-    const { rowIndex, field } = editingCell;
-    const newShipments = [...shipments];
-    if (field === 'shippingCharge') {
-      const numValue = parseFloat(editValue);
-      newShipments[rowIndex][field] = isNaN(numValue) ? 0 : numValue;
-    } else {
-      newShipments[rowIndex][field] = editValue;
-    }
-    saveToFirebase(newShipments);
-    setEditingCell(null);
-    setEditValue('');
-    setShowDropdown(false);
-    setDropdownRect(null);
   }, 200);
 };
-
 
  const handleKeyDown = (e, rowIndex, field) => {
   const fields = [
@@ -515,14 +510,13 @@ const handleCellBlur = () => {
  if (e.key === 'Escape') {
   e.preventDefault();
   e.stopPropagation();
-
-  cancelEditRef.current = true;       // <-- tell onBlur to skip save
+  // Cancel edit without saving - don't call blur, just reset state
+  setEditingCell(null);
+  setEditValue('');
   setShowDropdown(false);
   setDropdownRect(null);
-  // don't mutate editValue here; we'll ignore it on blur
-
-  if (inputRef.current) inputRef.current.blur(); // will trigger onBlur safely
-  return;
+  // Don't need to set cancelingEdit flag or call blur
+  return; // Exit early
 
   } else if (e.key === 'Enter') {
     e.preventDefault();
