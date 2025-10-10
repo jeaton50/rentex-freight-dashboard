@@ -139,6 +139,7 @@ function App() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [filteredOptions, setFilteredOptions] = useState([]);
   const inputRef = useRef(null);
+  const cancelingEdit = useRef(false); // Add this line
   const [dropdownRect, setDropdownRect] = useState(null);
   const [lastSaved, setLastSaved] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -470,24 +471,30 @@ function App() {
   };
 
   const handleCellBlur = () => {
-    setTimeout(() => {
-      if (editingCell) {
-        const { rowIndex, field } = editingCell;
-        const newShipments = [...shipments];
-        if (field === 'shippingCharge') {
-          const numValue = parseFloat(editValue);
-          newShipments[rowIndex][field] = isNaN(numValue) ? 0 : numValue;
-        } else {
-          newShipments[rowIndex][field] = editValue;
-        }
-        saveToFirebase(newShipments);
-        setEditingCell(null);
-        setEditValue('');
-        setShowDropdown(false);
-        setDropdownRect(null);
+  setTimeout(() => {
+    // If we're canceling via ESC, don't save
+    if (cancelingEdit.current) {
+      cancelingEdit.current = false; // Reset the flag
+      return;
+    }
+    
+    if (editingCell) {
+      const { rowIndex, field } = editingCell;
+      const newShipments = [...shipments];
+      if (field === 'shippingCharge') {
+        const numValue = parseFloat(editValue);
+        newShipments[rowIndex][field] = isNaN(numValue) ? 0 : numValue;
+      } else {
+        newShipments[rowIndex][field] = editValue;
       }
-    }, 200);
-  };
+      saveToFirebase(newShipments);
+      setEditingCell(null);
+      setEditValue('');
+      setShowDropdown(false);
+      setDropdownRect(null);
+    }
+  }, 200);
+};
 
  const handleKeyDown = (e, rowIndex, field) => {
   const fields = [
@@ -500,18 +507,21 @@ function App() {
 
   const currentIndex = fields.indexOf(field);
 
-  if (e.key === 'Escape') {
-    e.preventDefault();
-    e.stopPropagation();
-    // Cancel edit without saving
-    setEditingCell(null);
-    setEditValue('');
-    setShowDropdown(false);
-    setDropdownRect(null);
-    // Blur the input
-    if (inputRef.current) {
-      inputRef.current.blur();
-    }
+ if (e.key === 'Escape') {
+  e.preventDefault();
+  e.stopPropagation();
+  // Set flag to prevent saving
+  cancelingEdit.current = true;
+  // Cancel edit without saving
+  setEditingCell(null);
+  setEditValue('');
+  setShowDropdown(false);
+  setDropdownRect(null);
+  // Blur the input
+  if (inputRef.current) {
+    inputRef.current.blur();
+  }
+}
   } else if (e.key === 'Enter') {
     e.preventDefault();
     if (showDropdown && filteredOptions.length > 0) {
