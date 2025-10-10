@@ -490,58 +490,45 @@ function App() {
   };
 
   const handleKeyDown = (e, rowIndex, field) => {
-    const fields = [
-      'refNum', 'client',
-      'shipDate', 'returnDate',
-      'location', 'returnLocation', 'city',
-      'company', 'shipMethod', 'vehicleType',
-      'shippingCharge', 'po', 'agent',
-    ];
+  const fields = [
+    'refNum', 'client',
+    'shipDate', 'returnDate',
+    'location', 'returnLocation', 'city',
+    'company', 'shipMethod', 'vehicleType',
+    'shippingCharge', 'po', 'agent',
+  ];
 
-    const currentIndex = fields.indexOf(field);
+  const currentIndex = fields.indexOf(field);
 
-    if (e.key === 'Enter') {
-      if (showDropdown && filteredOptions.length > 0) {
-        handleSelectOption(filteredOptions[0]);
-      }
-      handleCellBlur();
-      if (rowIndex < shipments.length - 1) {
-        setTimeout(() => handleCellClick(rowIndex + 1, field), 250);
-      }
-    } else if (e.key === 'Tab') {
-      e.preventDefault();
-      handleCellBlur();
-      if (currentIndex < fields.length - 1) {
-        setTimeout(() => handleCellClick(rowIndex, fields[currentIndex + 1]), 250);
-      }
-    } else if (e.key === 'Escape') {
-      setEditingCell(null);
-      setEditValue('');
-      setShowDropdown(false);
-      setDropdownRect(null);
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    // Cancel edit without saving
+    setEditingCell(null);
+    setEditValue('');
+    setShowDropdown(false);
+    setDropdownRect(null);
+    // Blur the input
+    if (inputRef.current) {
+      inputRef.current.blur();
     }
-  };
-
-  const handleAddRow = async () => {
-    if (isYTD) {
-      try {
-        const targetRef = monthDocRef(selectedYear, editTargetMonth);
-        const snap = await getDoc(targetRef);
-        const existing = snap.exists() ? (snap.data().shipments || []) : [];
-        const updated = [buildDefaultShipment(), ...existing]; // Add at the top
-        await setDoc(targetRef, {
-          shipments: updated,
-          lastModified: new Date().toISOString(),
-          month: editTargetMonth,
-          year: selectedYear,
-        });
-        alert(`Row added to ${editTargetMonth} ${selectedYear}.`);
-      } catch (e) {
-        console.error('Add row (YTD) failed:', e);
-        alert('Failed to add row to target month.');
-      }
-      return;
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (showDropdown && filteredOptions.length > 0) {
+      handleSelectOption(filteredOptions[0]);
     }
+    handleCellBlur();
+    if (rowIndex < shipments.length - 1) {
+      setTimeout(() => handleCellClick(rowIndex + 1, field), 250);
+    }
+  } else if (e.key === 'Tab') {
+    e.preventDefault();
+    handleCellBlur();
+    if (currentIndex < fields.length - 1) {
+      setTimeout(() => handleCellClick(rowIndex, fields[currentIndex + 1]), 250);
+    }
+  }
+};
 
     const newShipment = buildDefaultShipment();
     const updatedShipments = [newShipment, ...shipments]; // Add at the top
