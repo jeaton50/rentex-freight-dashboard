@@ -139,7 +139,6 @@ function App() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [filteredOptions, setFilteredOptions] = useState([]);
   const inputRef = useRef(null);
-  const cancelingEdit = useRef(false); // Add this line
   const [dropdownRect, setDropdownRect] = useState(null);
   const [lastSaved, setLastSaved] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
