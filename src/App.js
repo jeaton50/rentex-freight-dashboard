@@ -1709,14 +1709,7 @@ const handleBulkAdd = async () => {
               >
                 + Add City
               </button>
-			  {/* City */}
-<button
-  onClick={() => setBulkAddModal({ open: true, type: 'city', items: '' })}
-  style={{ padding: '8px 12px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
-  title="Bulk add cities (one per line)"
->
-  📋 Bulk
-</button>
+			  
             </div>
 
 <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
