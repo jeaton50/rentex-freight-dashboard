@@ -132,7 +132,7 @@ function App() {
   const [cities, setCities] = useState(DEFAULT_CITIES);
   const [clients, setClients] = useState([]);
 
-  const [newCompany, setNewCompany] = useState('');
+  
   const [newLocation, setNewLocation] = useState('');
   const [newAgent, setNewAgent] = useState('');
   const [newCity, setNewCity] = useState('');
@@ -569,29 +569,7 @@ function App() {
     }
   };
 
-  const addCompanyGlobal = async () => {
-    const raw = newCompany.trim();
-    if (!raw) return;
-    const candidate = raw.toUpperCase();
-    const exists = companies.some(c => c.toUpperCase() === candidate);
-    if (exists) {
-      alert(`"${candidate}" already exists.`);
-      return;
-    }
-    const next = [...companies, candidate].sort((a, b) =>
-      a.localeCompare(b, undefined, { sensitivity: 'base' })
-    );
-
-    try {
-      const cfgRef = doc(db, 'freight-config', 'global');
-      await setDoc(cfgRef, { companies: next, updatedAt: new Date().toISOString() }, { merge: true });
-      setNewCompany('');
-    } catch (e) {
-      console.error('Failed to add company:', e);
-      alert('Failed to add company. Check your permissions/rules.');
-    }
-  };
-
+  
   const addLocationGlobal = async () => {
     const raw = newLocation.trim();
     if (!raw) return;
