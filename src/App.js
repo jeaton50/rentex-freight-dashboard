@@ -139,6 +139,7 @@ function App() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [filteredOptions, setFilteredOptions] = useState([]);
   const inputRef = useRef(null);
+  const isCanceling = useRef(false); // Add this line
   const [dropdownRect, setDropdownRect] = useState(null);
   const [lastSaved, setLastSaved] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -469,8 +470,14 @@ function App() {
     inputRef.current?.focus();
   };
 
-  const handleCellBlur = () => {
+const handleCellBlur = () => {
   setTimeout(() => {
+    // If canceling, just reset the flag and exit
+    if (isCanceling.current) {
+      isCanceling.current = false;
+      return;
+    }
+    
     if (editingCell) {
       const { rowIndex, field } = editingCell;
       const newShipments = [...shipments];
@@ -503,13 +510,19 @@ function App() {
  if (e.key === 'Escape') {
   e.preventDefault();
   e.stopPropagation();
-  // Cancel edit without saving - don't call blur, just reset state
-  setEditingCell(null);
-  setEditValue('');
+  // Set flag FIRST before anything else
+  isCanceling.current = true;
+  // Close dropdown
   setShowDropdown(false);
   setDropdownRect(null);
-  // Don't need to set cancelingEdit flag or call blur
-  return; // Exit early
+  // Reset edit state
+  setEditingCell(null);
+  setEditValue('');
+  // Force blur to trigger handleCellBlur (which will see the flag and exit)
+  if (inputRef.current) {
+    inputRef.current.blur();
+  }
+  return;
 
   } else if (e.key === 'Enter') {
     e.preventDefault();
