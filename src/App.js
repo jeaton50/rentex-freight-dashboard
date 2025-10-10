@@ -472,12 +472,6 @@ function App() {
 
   const handleCellBlur = () => {
   setTimeout(() => {
-    // If we're canceling via ESC, don't save
-    if (cancelingEdit.current) {
-      cancelingEdit.current = false; // Reset the flag
-      return;
-    }
-    
     if (editingCell) {
       const { rowIndex, field } = editingCell;
       const newShipments = [...shipments];
@@ -510,16 +504,13 @@ function App() {
  if (e.key === 'Escape') {
   e.preventDefault();
   e.stopPropagation();
-  // Set flag to prevent saving
-  cancelingEdit.current = true;
-  // Cancel edit without saving
+  // Cancel edit without saving - don't call blur, just reset state
   setEditingCell(null);
   setEditValue('');
   setShowDropdown(false);
   setDropdownRect(null);
-  // Blur the input
-  if (inputRef.current) {
-    inputRef.current.blur();
+  // Don't need to set cancelingEdit flag or call blur
+  return; // Exit early
 }
   } else if (e.key === 'Enter') {
     e.preventDefault();
