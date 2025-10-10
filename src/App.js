@@ -1608,22 +1608,24 @@ const handleBulkAdd = async () => {
               </div>
             )}
 
-           <button
-  onClick={() => setBulkAddModal({ open: true, type: 'company', items: '' })}
-  style={{
-    padding: '8px 12px',
-    background: '#0f766e',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    fontSize: '13px',
-    fontWeight: '600',
-    cursor: 'pointer'
-  }}
-  title="Add companies (one per line)"
->
-  + Add Company
-</button>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+  <button
+    onClick={() => setBulkAddModal({ open: true, type: 'company', items: '' })}
+    style={{
+      padding: '8px 12px',
+      background: '#0f766e',
+      color: 'white',
+      border: 'none',
+      borderRadius: '8px',
+      fontSize: '13px',
+      fontWeight: '600',
+      cursor: 'pointer'
+    }}
+    title="Add companies (one per line)"
+  >
+    + Add Company
+  </button>
+</div>
             
 
 {/* new bulk-add trigger */}
