@@ -511,7 +511,7 @@ function App() {
   setDropdownRect(null);
   // Don't need to set cancelingEdit flag or call blur
   return; // Exit early
-}
+
   } else if (e.key === 'Enter') {
     e.preventDefault();
     if (showDropdown && filteredOptions.length > 0) {
