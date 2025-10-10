@@ -1603,9 +1603,9 @@ const handleBulkAdd = async () => {
       fontWeight: '600',
       cursor: 'pointer'
     }}
-    title="Bulk add companies (one per line)"
+    title="Add Companies"
   >
-    📋 Bulk
+    📋 Add Companies
   </button>
 </div>
 
