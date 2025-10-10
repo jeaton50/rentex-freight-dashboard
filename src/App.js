@@ -131,11 +131,6 @@ function App() {
   const [agents, setAgents] = useState(DEFAULT_AGENTS);
   const [cities, setCities] = useState(DEFAULT_CITIES);
   const [clients, setClients] = useState([]);
-
-  
-
-  const [newCity, setNewCity] = useState('');
-  const [newClient, setNewClient] = useState('');
   const [bulkAddModal, setBulkAddModal] = useState({ open: false, type: '', items: '' });
   const [shipments, setShipments] = useState([]);
 
@@ -565,50 +560,6 @@ function App() {
     if (window.confirm('Delete this shipment?')) {
       const updatedShipments = shipments.filter((_, i) => i !== index);
       saveToFirebase(updatedShipments);
-    }
-  };
-
-  const addCityGlobal = async () => {
-    const raw = newCity.trim();
-    if (!raw) return;
-    const exists = cities.some(c => c.toLowerCase() === raw.toLowerCase());
-    if (exists) {
-      alert(`"${raw}" already exists.`);
-      return;
-    }
-    const next = [...cities, raw].sort((a, b) =>
-      a.localeCompare(b, undefined, { sensitivity: 'base' })
-    );
-
-    try {
-      const cfgRef = doc(db, 'freight-config', 'global');
-      await setDoc(cfgRef, { cities: next, updatedAt: new Date().toISOString() }, { merge: true });
-      setNewCity('');
-    } catch (e) {
-      console.error('Failed to add city:', e);
-      alert('Failed to add city. Check your permissions/rules.');
-    }
-  };
-
-  const addClientGlobal = async () => {
-    const raw = newClient.trim();
-    if (!raw) return;
-    const exists = clients.some(c => c.toLowerCase() === raw.toLowerCase());
-    if (exists) {
-      alert(`"${raw}" already exists.`);
-      return;
-    }
-    const next = [...clients, raw].sort((a, b) =>
-      a.localeCompare(b, undefined, { sensitivity: 'base' })
-    );
-
-    try {
-      const cfgRef = doc(db, 'freight-config', 'global');
-      await setDoc(cfgRef, { clients: next, updatedAt: new Date().toISOString() }, { merge: true });
-      setNewClient('');
-    } catch (e) {
-      console.error('Failed to add client:', e);
-      alert('Failed to add client. Check your permissions/rules.');
     }
   };
 
@@ -1461,10 +1412,10 @@ const handleBulkAdd = async () => {
 };
   
   if (!isAuthenticated) {
-    return <PasswordLogin onLogin={handleLogin} />;
-  }
+  return <PasswordLogin onLogin={handleLogin} />;
+}
 
-  return (
+return (
   <div style={{ minHeight: '100vh', background: 'white' }}>
     <div style={{ maxWidth: '98%', margin: '0 auto', padding: '16px' }}>
       <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
@@ -1493,79 +1444,67 @@ const handleBulkAdd = async () => {
         </div>
 
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-  <button onClick={handleLogout} style={{ padding: '8px 16px', background: '#64748b', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
-    🔒 Logout
-  </button>
+          <button onClick={handleLogout} style={{ padding: '8px 16px', background: '#64748b', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+            🔒 Logout
+          </button>
 
-  <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} style={{ padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
-    {YEAR_OPTIONS.map((y) => (<option key={y} value={y}>{y}</option>))}
-  </select>
+          <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} style={{ padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
+            {YEAR_OPTIONS.map((y) => (<option key={y} value={y}>{y}</option>))}
+          </select>
 
-  <select value={selectedMonth} onChange={(e) => handleMonthChange(e.target.value)} style={{ padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
-    {MONTHS_WITH_YTD.map((m) => <option key={m} value={m}>{m}</option>)}
-  </select>
+          <select value={selectedMonth} onChange={(e) => handleMonthChange(e.target.value)} style={{ padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
+            {MONTHS_WITH_YTD.map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
 
-  {isYTD && (
-    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-      <label style={{ fontSize: 12, color: '#475569' }}>Edit to month:</label>
-      <select value={editTargetMonth} onChange={(e) => setEditTargetMonth(e.target.value)} style={{ padding: '6px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 13 }}>
-        {MONTHS.map((m) => <option key={m} value={m}>{m}</option>)}
-      </select>
-    </div>
-  )}
+          {isYTD && (
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <label style={{ fontSize: 12, color: '#475569' }}>Edit to month:</label>
+              <select value={editTargetMonth} onChange={(e) => setEditTargetMonth(e.target.value)} style={{ padding: '6px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 13 }}>
+                {MONTHS.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+          )}
 
-  <button onClick={() => setBulkAddModal({ open: true, type: 'company', items: '' })} style={{ padding: '8px 12px', background: '#0f766e', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add companies (one per line)">
-    + Add Company
-  </button>
+          <button onClick={() => setBulkAddModal({ open: true, type: 'company', items: '' })} style={{ padding: '8px 12px', background: '#0f766e', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add companies (one per line)">
+            + Add Company
+          </button>
 
-  <button onClick={() => setBulkAddModal({ open: true, type: 'location', items: '' })} style={{ padding: '8px 12px', background: '#155e75', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add locations (one per line)">
-    + Add Location
-  </button>
+          <button onClick={() => setBulkAddModal({ open: true, type: 'location', items: '' })} style={{ padding: '8px 12px', background: '#155e75', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add locations (one per line)">
+            + Add Location
+          </button>
 
-  <button onClick={() => setBulkAddModal({ open: true, type: 'agent', items: '' })} style={{ padding: '8px 12px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title='Add agents (e.g., "J.DOE" or "John Doe" per line)'>
-    + Add Agent
-  </button>
+          <button onClick={() => setBulkAddModal({ open: true, type: 'agent', items: '' })} style={{ padding: '8px 12px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title='Add agents (e.g., "J.DOE" or "John Doe" per line)'>
+            + Add Agent
+          </button>
 
-  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-    <input type="text" value={newCity} placeholder="Add city…" onChange={(e) => setNewCity(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addCityGlobal(); }} style={{ padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', minWidth: 180 }} />
-    <button onClick={addCityGlobal} style={{ padding: '8px 12px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
-      + Add City
-    </button>
-    <button onClick={() => setBulkAddModal({ open: true, type: 'city', items: '' })} style={{ padding: '8px 12px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Bulk add cities (one per line)">
-      📋 Bulk
-    </button>
-  </div>
+          <button onClick={() => setBulkAddModal({ open: true, type: 'city', items: '' })} style={{ padding: '8px 12px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add cities (one per line)">
+            + Add City
+          </button>
 
-  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-    <input type="text" value={newClient} placeholder="Add client…" onChange={(e) => setNewClient(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addClientGlobal(); }} style={{ padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', minWidth: 180 }} />
-    <button onClick={addClientGlobal} style={{ padding: '8px 12px', background: '#db2777', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
-      + Add Client
-    </button>
-    <button onClick={() => setBulkAddModal({ open: true, type: 'client', items: '' })} style={{ padding: '8px 12px', background: '#be185d', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add multiple clients at once">
-      📋 Bulk
-    </button>
-  </div>
+          <button onClick={() => setBulkAddModal({ open: true, type: 'client', items: '' })} style={{ padding: '8px 12px', background: '#db2777', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add clients (one per line)">
+            + Add Client
+          </button>
 
-  <button onClick={exportMonthExcel} style={{ padding: '8px 12px', background: '#166534', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
-    ⬇️ Export {isYTD ? 'YTD' : 'Month'} (Excel)
-  </button>
+          <button onClick={exportMonthExcel} style={{ padding: '8px 12px', background: '#166534', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+            ⬇️ Export {isYTD ? 'YTD' : 'Month'} (Excel)
+          </button>
 
-  <button onClick={exportAllMonthsExcel} style={{ padding: '8px 12px', background: '#047857', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
-    ⬇️ Export All (Excel)
-  </button>
+          <button onClick={exportAllMonthsExcel} style={{ padding: '8px 12px', background: '#047857', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+            ⬇️ Export All (Excel)
+          </button>
 
-  <input ref={fileInputRef} type="file" accept=".xlsx" onChange={onImportFileChange} style={{ display: 'none' }} />
-  
-  <button onClick={onClickImport} disabled={isImporting} style={{ padding: '8px 12px', background: isImporting ? '#9ca3af' : '#312e81', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: isImporting ? 'not-allowed' : 'pointer' }}>
-    {isImporting ? '⏳ Importing…' : '⬆️ Import All (Excel)'}
-  </button>
-  
-  <button onClick={() => setStatusEnabled(!statusEnabled)} style={{ padding: '8px 16px', background: statusEnabled ? '#10b981' : '#64748b', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }} title={statusEnabled ? 'Click to hide statistics' : 'Click to show statistics'}>
-    <span style={{ fontSize: '16px' }}>{statusEnabled ? '👁️' : '👁️‍🗨️'}</span>
-    {statusEnabled ? 'Hide Stats' : 'Show Stats'}
-  </button>
-</div>
-</div>
+          <input ref={fileInputRef} type="file" accept=".xlsx" onChange={onImportFileChange} style={{ display: 'none' }} />
+          
+          <button onClick={onClickImport} disabled={isImporting} style={{ padding: '8px 12px', background: isImporting ? '#9ca3af' : '#312e81', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: isImporting ? 'not-allowed' : 'pointer' }}>
+            {isImporting ? '⏳ Importing…' : '⬆️ Import All (Excel)'}
+          </button>
+          
+          <button onClick={() => setStatusEnabled(!statusEnabled)} style={{ padding: '8px 16px', background: statusEnabled ? '#10b981' : '#64748b', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }} title={statusEnabled ? 'Click to hide statistics' : 'Click to show statistics'}>
+            <span style={{ fontSize: '16px' }}>{statusEnabled ? '👁️' : '👁️‍🗨️'}</span>
+            {statusEnabled ? 'Hide Stats' : 'Show Stats'}
+          </button>
+        </div>
+      </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
           <div style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: '12px', padding: '20px', color: 'white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
