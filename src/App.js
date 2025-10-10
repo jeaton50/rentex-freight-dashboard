@@ -489,7 +489,7 @@ function App() {
     }, 200);
   };
 
-  const handleKeyDown = (e, rowIndex, field) => {
+ const handleKeyDown = (e, rowIndex, field) => {
   const fields = [
     'refNum', 'client',
     'shipDate', 'returnDate',
@@ -530,14 +530,35 @@ function App() {
   }
 };
 
-    const newShipment = buildDefaultShipment();
-    const updatedShipments = [newShipment, ...shipments]; // Add at the top
-    setShipments(updatedShipments);
-    saveToFirebase(updatedShipments);
-    setTimeout(() => {
-      handleCellClick(0, 'refNum'); // Focus on first row (index 0)
-    }, 300);
-  };
+const handleAddRow = async () => {
+  if (isYTD) {
+    try {
+      const targetRef = monthDocRef(selectedYear, editTargetMonth);
+      const snap = await getDoc(targetRef);
+      const existing = snap.exists() ? (snap.data().shipments || []) : [];
+      const updated = [buildDefaultShipment(), ...existing]; // Add at the top
+      await setDoc(targetRef, {
+        shipments: updated,
+        lastModified: new Date().toISOString(),
+        month: editTargetMonth,
+        year: selectedYear,
+      });
+      alert(`Row added to ${editTargetMonth} ${selectedYear}.`);
+    } catch (e) {
+      console.error('Add row (YTD) failed:', e);
+      alert('Failed to add row to target month.');
+    }
+    return;
+  }
+
+  const newShipment = buildDefaultShipment();
+  const updatedShipments = [newShipment, ...shipments]; // Add at the top
+  setShipments(updatedShipments);
+  saveToFirebase(updatedShipments);
+  setTimeout(() => {
+    handleCellClick(0, 'refNum'); // Focus on first row (index 0)
+  }, 300);
+};
 
   const handleDeleteRow = (index) => {
     if (isYTD) {
