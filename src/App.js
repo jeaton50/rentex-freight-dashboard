@@ -520,7 +520,6 @@ function App() {
   // Blur the input
   if (inputRef.current) {
     inputRef.current.blur();
-  }
 }
   } else if (e.key === 'Enter') {
     e.preventDefault();
