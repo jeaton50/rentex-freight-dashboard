@@ -132,7 +132,7 @@ function App() {
   const [cities, setCities] = useState(DEFAULT_CITIES);
   const [clients, setClients] = useState([]);
 
-
+  const [newCompany, setNewCompany] = useState('');
   const [newLocation, setNewLocation] = useState('');
   const [newAgent, setNewAgent] = useState('');
   const [newCity, setNewCity] = useState('');
