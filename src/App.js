@@ -133,7 +133,6 @@ function App() {
   const [clients, setClients] = useState([]);
 
   
-  const [newLocation, setNewLocation] = useState('');
   const [newAgent, setNewAgent] = useState('');
   const [newCity, setNewCity] = useState('');
   const [newClient, setNewClient] = useState('');
@@ -566,29 +565,6 @@ function App() {
     if (window.confirm('Delete this shipment?')) {
       const updatedShipments = shipments.filter((_, i) => i !== index);
       saveToFirebase(updatedShipments);
-    }
-  };
-
-  
-  const addLocationGlobal = async () => {
-    const raw = newLocation.trim();
-    if (!raw) return;
-    const exists = locations.some(l => l.toLowerCase() === raw.toLowerCase());
-    if (exists) {
-      alert(`"${raw}" already exists.`);
-      return;
-    }
-    const next = [...locations, raw].sort((a, b) =>
-      a.localeCompare(b, undefined, { sensitivity: 'base' })
-    );
-
-    try {
-      const cfgRef = doc(db, 'freight-config', 'global');
-      await setDoc(cfgRef, { locations: next, updatedAt: new Date().toISOString() }, { merge: true });
-      setNewLocation('');
-    } catch (e) {
-      console.error('Failed to add location:', e);
-      alert('Failed to add location. Check your permissions/rules.');
     }
   };
 
@@ -1610,21 +1586,24 @@ const handleBulkAdd = async () => {
 </div>
 
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-              <input
-                type="text"
-                value={newLocation}
-                placeholder="Add location…"
-                onChange={(e) => setNewLocation(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') addLocationGlobal(); }}
-                style={{ padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '13px', minWidth: 220 }}
-              />
-              <button
-                onClick={addLocationGlobal}
-                style={{ padding: '8px 12px', background: '#155e75', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
-              >
-                + Add Location
-              </button>
-			  {/* Location */}
+  <button
+    onClick={() => setBulkAddModal({ open: true, type: 'location', items: '' })}
+    style={{ 
+      padding: '8px 12px', 
+      background: '#155e75', 
+      color: 'white', 
+      border: 'none', 
+      borderRadius: '8px', 
+      fontSize: '13px', 
+      fontWeight: '600', 
+      cursor: 'pointer' 
+    }}
+    title="Add locations (one per line)"
+  >
+    + Add Location
+  </button>
+</div>
+
 <button
   onClick={() => setBulkAddModal({ open: true, type: 'location', items: '' })}
   style={{ padding: '8px 12px', background: '#155e75', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
