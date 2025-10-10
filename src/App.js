@@ -1565,6 +1565,7 @@ const handleBulkAdd = async () => {
     {statusEnabled ? 'Hide Stats' : 'Show Stats'}
   </button>
 </div>
+</div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
           <div style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: '12px', padding: '20px', color: 'white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
