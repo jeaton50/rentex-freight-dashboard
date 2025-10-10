@@ -528,7 +528,7 @@ function App() {
       setTimeout(() => handleCellClick(rowIndex, fields[currentIndex + 1]), 250);
     }
   }
-
+};
 
     const newShipment = buildDefaultShipment();
     const updatedShipments = [newShipment, ...shipments]; // Add at the top
