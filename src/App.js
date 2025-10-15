@@ -1270,7 +1270,7 @@ function App() {
             style={{
               width: '100%',
               padding: '4px 8px',
-              border: '2px solid '#3b82f6',
+              border: '2px solid #3b82f6',
               outline: 'none',
               fontSize: '12px',
               textTransform: field === 'state' ? 'uppercase' : 'none',
