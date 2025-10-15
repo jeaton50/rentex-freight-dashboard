@@ -163,6 +163,7 @@ function App() {
   const shipmentCountRef = useRef(null);
   const revenueDistRef = useRef(null);
   const cityStatsRef = useRef(null);
+  const stateStatsRef = useRef(null);
 
   // Authentication check
   useEffect(() => {
@@ -839,14 +840,24 @@ function App() {
       await new Promise(resolve => setTimeout(resolve, 100));
     }
 
-    const [imgCostPerCompany, imgShipmentCount, imgRevenueDist, imgClientStats, imgAgentStats, imgCityStats] = await Promise.all([
-      capture(costPerCompanyRef.current),
-      capture(shipmentCountRef.current),
-      capture(revenueDistRef.current),
-      capture(clientStatsRef.current),
-      capture(agentStatsRef.current),
-      capture(cityStatsRef.current),
-    ]);
+    const [
+  imgCostPerCompany,
+  imgShipmentCount,
+  imgRevenueDist,
+  imgClientStats,
+  imgAgentStats,
+  imgCityStats,
+  imgStateStats,
+] = await Promise.all([
+  capture(costPerCompanyRef.current),
+  capture(shipmentCountRef.current),
+  capture(revenueDistRef.current),
+  capture(clientStatsRef.current),
+  capture(agentStatsRef.current),
+  capture(cityStatsRef.current),
+  capture(stateStatsRef.current),
+]);
+
 
     if (statsWereHidden) {
       setStatusEnabled(false);
@@ -909,6 +920,7 @@ function App() {
     addImg(imgClientStats, 50, 0, 900, 350);
     addImg(imgAgentStats, 66, 0, 900, 350);
     addImg(imgCityStats, 82, 0, 900, 350);
+	addImg(imgStateStats,     98, 0, 900, 350);
 
     const buf = await wb.xlsx.writeBuffer();
     downloadBlob(
@@ -1147,6 +1159,24 @@ function App() {
       .sort((a, b) => a.agent.localeCompare(b.agent));
   })();
 
+  const stateSummary = (() => {
+  const summary = {};
+  shipments.forEach((s) => {
+    const st = (s.state || '').trim();
+    if (!st) return;
+    const key = st.toUpperCase();
+    if (!summary[key]) summary[key] = { count: 0, total: 0 };
+    summary[key].count += 1;
+    summary[key].total += Number(s.shippingCharge || 0);
+  });
+  return Object.entries(summary)
+    .map(([state, data]) => ({ state, ...data }))
+    .sort((a, b) => a.state.localeCompare(b.state));
+})();
+
+
+
+ 
   const citySummary = (() => {
     const summary = {};
     shipments.forEach((s) => {
@@ -1167,6 +1197,7 @@ function App() {
   const maxClientCount = Math.max(...clientSummary.map((c) => c.count), 1);
   const maxAgentCount = Math.max(...agentSummary.map((c) => c.count), 1);
   const maxCityCount = Math.max(...citySummary.map((c) => c.count), 1);
+  const maxStateCount = Math.max(...stateSummary.map((c) => c.count), 1);
   const chartColors = [
     '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981',
     '#06b6d4', '#6366f1', '#f97316', '#14b8a6', '#f43f5e',
@@ -1835,6 +1866,66 @@ function App() {
             </div>
           </>
         )}
+		
+		<div ref={stateStatsRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
+  <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Shipments by State</h3>
+  {stateSummary.length > 0 ? (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+      <div>
+        <table style={{ width: '100%', fontSize: '12px' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+              <th style={{ textAlign: 'left', padding: '4px', fontWeight: '600' }}>State</th>
+              <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Shipments</th>
+              <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Total Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stateSummary.map((item, idx) => (
+              <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
+                <td style={{ padding: '4px' }}>{item.state}</td>
+                <td style={{ textAlign: 'right', padding: '4px' }}>{item.count}</td>
+                <td style={{ textAlign: 'right', padding: '4px' }}>
+                  ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div>
+        <h4 style={{ fontSize: '12px', fontWeight: '600', marginBottom: '12px', color: '#475569' }}>Shipment Count by State</h4>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {stateSummary.map((item, idx) => (
+            <div key={idx}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', fontSize: '10px' }}>
+                <span style={{ fontWeight: '600', color: '#475569' }}>{item.state}</span>
+                <span style={{ color: '#64748b' }}>{item.count}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <div style={{ flex: 1, height: '20px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      width: `${(item.count / maxStateCount) * 100}%`,
+                      height: '100%',
+                      background: chartColors[idx % chartColors.length],
+                      borderRadius: '4px',
+                      transition: 'width 0.3s ease',
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  ) : (
+    <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No state data for {selectedMonth}</p>
+  )}
+</div>
+
 
         <div style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px' }}>
           <div style={{ background: '#1d4ed8', color: 'white', padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTopLeftRadius: '8px', borderTopRightRadius: '8px' }}>
@@ -1960,4 +2051,5 @@ function App() {
 }
 
 export default App;
+
 
