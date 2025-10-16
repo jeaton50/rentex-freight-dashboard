@@ -52,6 +52,13 @@ const DEFAULT_CITIES = [
   'Minneapolis', 'Tulsa', 'Tampa', 'Arlington', 'New Orleans'
 ];
 
+// 2-letter U.S. states/territories for autocomplete; editable via Bulk Add too.
+const DEFAULT_STATES = [
+  'AL','AK','AZ','AR','CA','CO','CT','DC','DE','FL','GA','HI','IA','ID','IL','IN','KS','KY','LA','MA','MD',
+  'ME','MI','MN','MO','MS','MT','NC','ND','NE','NH','NJ','NM','NV','NY','OH','OK','OR','PA','PR','RI','SC',
+  'SD','TN','TX','UT','VA','VI','VT','WA','WI','WV','WY'
+];
+
 const SHIP_METHODS = ['Round Trip', 'One Way', 'Daily rate','SWA Last Mile - Round Trip','FAIR Last Mile - Round Trip','SWA Last Mile - One Way','FAIR Last Mile - One Way',];
 const VEHICLE_TYPES = ['Trailer', 'Sprinter Van', 'Box Truck'];
 
@@ -130,6 +137,7 @@ function App() {
   const [locations, setLocations] = useState(DEFAULT_LOCATIONS);
   const [agents, setAgents] = useState(DEFAULT_AGENTS);
   const [cities, setCities] = useState(DEFAULT_CITIES);
+  const [states, setStates] = useState(DEFAULT_STATES);
   const [clients, setClients] = useState([]);
   const [bulkAddModal, setBulkAddModal] = useState({ open: false, type: '', items: '' });
   const [shipments, setShipments] = useState([]);
@@ -155,6 +163,7 @@ function App() {
   const shipmentCountRef = useRef(null);
   const revenueDistRef = useRef(null);
   const cityStatsRef = useRef(null);
+  const stateStatsRef = useRef(null);
 
   // Authentication check
   useEffect(() => {
@@ -186,6 +195,7 @@ function App() {
           locations: DEFAULT_LOCATIONS,
           agents: DEFAULT_AGENTS,
           cities: DEFAULT_CITIES,
+          states: DEFAULT_STATES,
           clients: [],
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
@@ -197,6 +207,7 @@ function App() {
         if (!Array.isArray(data.locations)) payload.locations = DEFAULT_LOCATIONS;
         if (!Array.isArray(data.agents)) payload.agents = DEFAULT_AGENTS;
         if (!Array.isArray(data.cities)) payload.cities = DEFAULT_CITIES;
+        if (!Array.isArray(data.states)) payload.states = DEFAULT_STATES;
         if (!Array.isArray(data.clients)) payload.clients = [];
         if (Object.keys(payload).length) {
           payload.updatedAt = new Date().toISOString();
@@ -212,12 +223,14 @@ function App() {
         setLocations(Array.isArray(data.locations) && data.locations.length ? data.locations : DEFAULT_LOCATIONS);
         setAgents(Array.isArray(data.agents) && data.agents.length ? data.agents : DEFAULT_AGENTS);
         setCities(Array.isArray(data.cities) && data.cities.length ? data.cities : DEFAULT_CITIES);
+        setStates(Array.isArray(data.states) && data.states.length ? data.states : DEFAULT_STATES);
         setClients(Array.isArray(data.clients) ? data.clients : []);
       } else {
         setCompanies(DEFAULT_COMPANIES);
         setLocations(DEFAULT_LOCATIONS);
         setAgents(DEFAULT_AGENTS);
         setCities(DEFAULT_CITIES);
+        setStates(DEFAULT_STATES);
         setClients([]);
       }
     });
@@ -234,6 +247,7 @@ function App() {
     location: locations?.[0] || '',
     returnLocation: '',
     city: '',
+    state: '',
     company: companies?.[0] || '',
     shipMethod: SHIP_METHODS[0],
     vehicleType: VEHICLE_TYPES?.[0] || '',
@@ -302,6 +316,25 @@ function App() {
 
   useEffect(() => {
     if (!showDropdown) return;
+    const computeDropdownPosition = () => {
+      if (!inputRef.current) return;
+      const rect = inputRef.current.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const maxHeight = 400;
+      const padding = 6;
+
+      const spaceBelow = vh - rect.bottom - padding;
+      const spaceAbove = rect.top - padding;
+      const openUp = spaceBelow < 220 && spaceAbove > spaceBelow;
+      const height = Math.min(openUp ? spaceAbove - padding : spaceBelow - padding, maxHeight);
+
+      setDropdownRect({
+        top: openUp ? rect.top - height - 4 : rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+        height: Math.max(180, height),
+      });
+    };
     computeDropdownPosition();
     const onScrollResize = () => computeDropdownPosition();
     window.addEventListener('scroll', onScrollResize, true);
@@ -371,26 +404,6 @@ function App() {
     }
   };
 
-  const computeDropdownPosition = () => {
-    if (!inputRef.current) return;
-    const rect = inputRef.current.getBoundingClientRect();
-    const vh = window.innerHeight;
-    const maxHeight = 400;
-    const padding = 6;
-
-    const spaceBelow = vh - rect.bottom - padding;
-    const spaceAbove = rect.top - padding;
-    const openUp = spaceBelow < 220 && spaceAbove > spaceBelow;
-    const height = Math.min(openUp ? spaceAbove - padding : spaceBelow - padding, maxHeight);
-
-    setDropdownRect({
-      top: openUp ? rect.top - height - 4 : rect.bottom + 4,
-      left: rect.left,
-      width: rect.width,
-      height: Math.max(180, height),
-    });
-  };
-
   const handleCellClick = (rowIndex, field) => {
     if (isYTD) return;
     if (!shipments[rowIndex]) return;
@@ -401,31 +414,27 @@ function App() {
     if (field === 'company') {
       setFilteredOptions(companies);
       setShowDropdown(true);
-      setTimeout(computeDropdownPosition, 0);
     } else if (field === 'agent') {
       setFilteredOptions(agents);
       setShowDropdown(true);
-      setTimeout(computeDropdownPosition, 0);
     } else if (field === 'location' || field === 'returnLocation') {
       setFilteredOptions(locations);
       setShowDropdown(true);
-      setTimeout(computeDropdownPosition, 0);
     } else if (field === 'city') {
       setFilteredOptions(cities);
       setShowDropdown(true);
-      setTimeout(computeDropdownPosition, 0);
+    } else if (field === 'state') {
+      setFilteredOptions(states);
+      setShowDropdown(true);
     } else if (field === 'client') {
       setFilteredOptions(clients);
       setShowDropdown(true);
-      setTimeout(computeDropdownPosition, 0);
     } else if (field === 'shipMethod') {
       setFilteredOptions(SHIP_METHODS);
       setShowDropdown(true);
-      setTimeout(computeDropdownPosition, 0);
     } else if (field === 'vehicleType') {
       setFilteredOptions(VEHICLE_TYPES);
       setShowDropdown(true);
-      setTimeout(computeDropdownPosition, 0);
     } else {
       setShowDropdown(false);
     }
@@ -438,7 +447,7 @@ function App() {
     const field = editingCell?.field;
     if (!field) return;
 
-    if (['company', 'agent', 'location', 'returnLocation', 'city', 'client', 'shipMethod', 'vehicleType'].includes(field)) {
+    if (['company', 'agent', 'location', 'returnLocation', 'city', 'state', 'client', 'shipMethod', 'vehicleType'].includes(field)) {
       const options =
         field === 'company'
           ? companies
@@ -446,6 +455,8 @@ function App() {
           ? agents
           : field === 'city'
           ? cities
+          : field === 'state'
+          ? states
           : field === 'client'
           ? clients
           : field === 'shipMethod'
@@ -455,7 +466,7 @@ function App() {
           : locations;
 
       const filtered = options.filter((option) =>
-        option.toLowerCase().includes(value.toLowerCase())
+        String(option).toLowerCase().includes(String(value).toLowerCase())
       );
       setFilteredOptions(filtered);
       setShowDropdown(filtered.length > 0);
@@ -470,94 +481,102 @@ function App() {
   };
 
   const handleCellBlur = () => {
-  setTimeout(() => {
-    if (editingCell) {
-      const { rowIndex, field } = editingCell;
-      const newShipments = [...shipments];
-      if (field === 'shippingCharge') {
-        const numValue = parseFloat(editValue);
-        newShipments[rowIndex][field] = isNaN(numValue) ? 0 : numValue;
-      } else {
-        newShipments[rowIndex][field] = editValue;
+    setTimeout(() => {
+      if (editingCell) {
+        const { rowIndex, field } = editingCell;
+        const newShipments = [...shipments];
+        if (field === 'shippingCharge') {
+          const numValue = parseFloat(editValue);
+          newShipments[rowIndex][field] = isNaN(numValue) ? 0 : numValue;
+        } else if (field === 'state') {
+          const usStateRE = /^[A-Za-z]{2}$/;
+          let val = (editValue || '').toString().trim();
+          if (val) {
+            val = val.toUpperCase().slice(0, 2);
+            if (!usStateRE.test(val)) {
+              // keep as-is if not two letters, but uppercase
+              // (allows future non-US states if needed)
+            }
+          }
+          newShipments[rowIndex][field] = val;
+        } else {
+          newShipments[rowIndex][field] = editValue;
+        }
+        saveToFirebase(newShipments);
+        setEditingCell(null);
+        setEditValue('');
+        setShowDropdown(false);
+        setDropdownRect(null);
       }
-      saveToFirebase(newShipments);
+    }, 200);
+  };
+
+  const handleKeyDown = (e, rowIndex, field) => {
+    const fields = [
+      'refNum', 'client',
+      'shipDate', 'returnDate',
+      'location', 'returnLocation', 'city', 'state',
+      'company', 'shipMethod', 'vehicleType',
+      'shippingCharge', 'po', 'agent',
+    ];
+
+    const currentIndex = fields.indexOf(field);
+
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
       setEditingCell(null);
       setEditValue('');
       setShowDropdown(false);
       setDropdownRect(null);
+      return;
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (showDropdown && filteredOptions.length > 0) {
+        handleSelectOption(filteredOptions[0]);
+      }
+      handleCellBlur();
+      if (rowIndex < shipments.length - 1) {
+        setTimeout(() => handleCellClick(rowIndex + 1, field), 250);
+      }
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      handleCellBlur();
+      if (currentIndex < fields.length - 1) {
+        setTimeout(() => handleCellClick(rowIndex, fields[currentIndex + 1]), 250);
+      }
     }
-  }, 200);
-};
+  };
 
- const handleKeyDown = (e, rowIndex, field) => {
-  const fields = [
-    'refNum', 'client',
-    'shipDate', 'returnDate',
-    'location', 'returnLocation', 'city',
-    'company', 'shipMethod', 'vehicleType',
-    'shippingCharge', 'po', 'agent',
-  ];
-
-  const currentIndex = fields.indexOf(field);
-
- if (e.key === 'Escape') {
-  e.preventDefault();
-  e.stopPropagation();
-  // Cancel edit without saving - don't call blur, just reset state
-  setEditingCell(null);
-  setEditValue('');
-  setShowDropdown(false);
-  setDropdownRect(null);
-  // Don't need to set cancelingEdit flag or call blur
-  return; // Exit early
-
-  } else if (e.key === 'Enter') {
-    e.preventDefault();
-    if (showDropdown && filteredOptions.length > 0) {
-      handleSelectOption(filteredOptions[0]);
+  const handleAddRow = async () => {
+    if (isYTD) {
+      try {
+        const targetRef = monthDocRef(selectedYear, editTargetMonth);
+        const snap = await getDoc(targetRef);
+        const existing = snap.exists() ? (snap.data().shipments || []) : [];
+        const updated = [buildDefaultShipment(), ...existing];
+        await setDoc(targetRef, {
+          shipments: updated,
+          lastModified: new Date().toISOString(),
+          month: editTargetMonth,
+          year: selectedYear,
+        });
+        alert(`Row added to ${editTargetMonth} ${selectedYear}.`);
+      } catch (e) {
+        console.error('Add row (YTD) failed:', e);
+        alert('Failed to add row to target month.');
+      }
+      return;
     }
-    handleCellBlur();
-    if (rowIndex < shipments.length - 1) {
-      setTimeout(() => handleCellClick(rowIndex + 1, field), 250);
-    }
-  } else if (e.key === 'Tab') {
-    e.preventDefault();
-    handleCellBlur();
-    if (currentIndex < fields.length - 1) {
-      setTimeout(() => handleCellClick(rowIndex, fields[currentIndex + 1]), 250);
-    }
-  }
-};
 
-const handleAddRow = async () => {
-  if (isYTD) {
-    try {
-      const targetRef = monthDocRef(selectedYear, editTargetMonth);
-      const snap = await getDoc(targetRef);
-      const existing = snap.exists() ? (snap.data().shipments || []) : [];
-      const updated = [buildDefaultShipment(), ...existing]; // Add at the top
-      await setDoc(targetRef, {
-        shipments: updated,
-        lastModified: new Date().toISOString(),
-        month: editTargetMonth,
-        year: selectedYear,
-      });
-      alert(`Row added to ${editTargetMonth} ${selectedYear}.`);
-    } catch (e) {
-      console.error('Add row (YTD) failed:', e);
-      alert('Failed to add row to target month.');
-    }
-    return;
-  }
-
-  const newShipment = buildDefaultShipment();
-  const updatedShipments = [newShipment, ...shipments]; // Add at the top
-  setShipments(updatedShipments);
-  saveToFirebase(updatedShipments);
-  setTimeout(() => {
-    handleCellClick(0, 'refNum'); // Focus on first row (index 0)
-  }, 300);
-};
+    const newShipment = buildDefaultShipment();
+    const updatedShipments = [newShipment, ...shipments];
+    setShipments(updatedShipments);
+    saveToFirebase(updatedShipments);
+    setTimeout(() => {
+      handleCellClick(0, 'refNum');
+    }, 300);
+  };
 
   const handleDeleteRow = (index) => {
     if (isYTD) {
@@ -570,103 +589,108 @@ const handleAddRow = async () => {
     }
   };
 
-const handleBulkAdd = async () => {
-  const lines = bulkAddModal.items
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => line.length > 0);
+  const handleBulkAdd = async () => {
+    const lines = bulkAddModal.items
+      .split('\\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
 
-  if (lines.length === 0) {
-    alert('Please enter at least one item (one per line)');
-    return;
-  }
-
-  const type = bulkAddModal.type;
-  let currentList, fieldName, processor;
-
-  switch (type) {
-    case 'company':
-      currentList = companies;
-      fieldName = 'companies';
-      processor = (val) => val.toUpperCase();
-      break;
-    case 'location':
-      currentList = locations;
-      fieldName = 'locations';
-      processor = (val) => val;
-      break;
-    case 'agent':
-      currentList = agents;
-      fieldName = 'agents';
-      processor = (val) => {
-        let candidate = val.toUpperCase();
-        if (!candidate.includes('.')) {
-          const parts = candidate.split(/\s+/).filter(Boolean);
-          if (parts.length >= 2) {
-            const firstInitial = parts[0][0];
-            const last = parts.slice(1).join('').replace(/[^A-Z]/g, '');
-            candidate = `${firstInitial}.${last}`;
-          }
-        }
-        return candidate;
-      };
-      break;
-    case 'city':
-      currentList = cities;
-      fieldName = 'cities';
-      processor = (val) => val;
-      break;
-    case 'client':
-      currentList = clients;
-      fieldName = 'clients';
-      processor = (val) => val;
-      break;
-    default:
+    if (lines.length === 0) {
+      alert('Please enter at least one item (one per line)');
       return;
-  }
-
-  const newItems = [];
-  const duplicates = [];
-  
-  lines.forEach(line => {
-    const processed = processor(line);
-    const exists = currentList.some(item => 
-      item.toLowerCase() === processed.toLowerCase()
-    );
-    
-    if (exists) {
-      duplicates.push(processed);
-    } else if (!newItems.some(item => item.toLowerCase() === processed.toLowerCase())) {
-      newItems.push(processed);
     }
-  });
 
-  if (newItems.length === 0) {
-    alert(`All items already exist!${duplicates.length > 0 ? '\n\nDuplicates: ' + duplicates.join(', ') : ''}`);
-    return;
-  }
+    const type = bulkAddModal.type;
+    let currentList, fieldName, processor;
 
-  const updatedList = [...currentList, ...newItems].sort((a, b) =>
-    a.localeCompare(b, undefined, { sensitivity: 'base' })
-  );
+    switch (type) {
+      case 'company':
+        currentList = companies;
+        fieldName = 'companies';
+        processor = (val) => val.toUpperCase();
+        break;
+      case 'location':
+        currentList = locations;
+        fieldName = 'locations';
+        processor = (val) => val;
+        break;
+      case 'agent':
+        currentList = agents;
+        fieldName = 'agents';
+        processor = (val) => {
+          let candidate = val.toUpperCase();
+          if (!candidate.includes('.')) {
+            const parts = candidate.split(/\\s+/).filter(Boolean);
+            if (parts.length >= 2) {
+              const firstInitial = parts[0][0];
+              const last = parts.slice(1).join('').replace(/[^A-Z]/g, '');
+              candidate = `${firstInitial}.${last}`;
+            }
+          }
+          return candidate;
+        };
+        break;
+      case 'city':
+        currentList = cities;
+        fieldName = 'cities';
+        processor = (val) => val;
+        break;
+      case 'state':
+        currentList = states;
+        fieldName = 'states';
+        processor = (val) => (val || '').toUpperCase().slice(0,2);
+        break;
+      case 'client':
+        currentList = clients;
+        fieldName = 'clients';
+        processor = (val) => val;
+        break;
+      default:
+        return;
+    }
 
-  try {
-    const cfgRef = doc(db, 'freight-config', 'global');
-    await setDoc(cfgRef, { 
-      [fieldName]: updatedList, 
-      updatedAt: new Date().toISOString() 
-    }, { merge: true });
+    const newItems = [];
+    const duplicates = [];
     
-    setBulkAddModal({ open: false, type: '', items: '' });
-    
-    const message = `✅ Added ${newItems.length} ${type}(s) successfully!` +
-      (duplicates.length > 0 ? `\n\n⚠️ Skipped ${duplicates.length} duplicate(s)` : '');
-    alert(message);
-  } catch (e) {
-    console.error(`Failed to bulk add ${type}s:`, e);
-    alert(`Failed to add ${type}s. Check your permissions/rules.`);
-  }
-};
+    lines.forEach(line => {
+      const processed = processor(line);
+      const exists = currentList.some(item => 
+        String(item).toLowerCase() === String(processed).toLowerCase()
+      );
+      
+      if (exists) {
+        duplicates.push(processed);
+      } else if (!newItems.some(item => String(item).toLowerCase() === String(processed).toLowerCase())) {
+        newItems.push(processed);
+      }
+    });
+
+    if (newItems.length === 0) {
+      alert(`All items already exist!${duplicates.length > 0 ? '\\n\\nDuplicates: ' + duplicates.join(', ') : ''}`);
+      return;
+    }
+
+    const updatedList = [...currentList, ...newItems].sort((a, b) =>
+      String(a).localeCompare(String(b), undefined, { sensitivity: 'base' })
+    );
+
+    try {
+      const cfgRef = doc(db, 'freight-config', 'global');
+      await setDoc(cfgRef, { 
+        [fieldName]: updatedList, 
+        updatedAt: new Date().toISOString() 
+      }, { merge: true });
+      
+      setBulkAddModal({ open: false, type: '', items: '' });
+      
+      const message = `✅ Added ${newItems.length} ${type}(s) successfully!` +
+        (duplicates.length > 0 ? `\\n\\n⚠️ Skipped ${duplicates.length} duplicate(s)` : '');
+      alert(message);
+    } catch (e) {
+      console.error(`Failed to bulk add ${type}s:`, e);
+      alert(`Failed to add ${type}s. Check your permissions/rules.`);
+    }
+  };
 
   const excelColumns = [
     { header: 'Reference #', key: 'refNum' },
@@ -676,6 +700,7 @@ const handleBulkAdd = async () => {
     { header: 'Location', key: 'location' },
     { header: 'Return Location', key: 'returnLocation' },
     { header: 'City', key: 'city' },
+    { header: 'State', key: 'state' },
     { header: 'Company', key: 'company' },
     { header: 'Ship Method', key: 'shipMethod' },
     { header: 'Vehicle Type', key: 'vehicleType' },
@@ -693,6 +718,7 @@ const handleBulkAdd = async () => {
       location: s.location ?? '',
       returnLocation: s.returnLocation ?? '',
       city: s.city ?? '',
+      state: s.state ?? '',
       company: s.company ?? '',
       shipMethod: s.shipMethod ?? '',
       vehicleType: s.vehicleType ?? '',
@@ -717,7 +743,6 @@ const handleBulkAdd = async () => {
   };
 
   const buildAllRowsSheet = (wb, year, monthToRowsMap) => {
-    console.log('Building All Rows sheet...');
     const sheet = wb.addWorksheet('All Rows', { views: [{ state: 'frozen', ySplit: 1 }] });
 
     sheet.columns = [
@@ -730,6 +755,7 @@ const handleBulkAdd = async () => {
       { header: 'Location', key: 'location' },
       { header: 'Return Location', key: 'returnLocation' },
       { header: 'City', key: 'city' },
+      { header: 'State', key: 'state' },
       { header: 'Company', key: 'company' },
       { header: 'Ship Method', key: 'shipMethod' },
       { header: 'Vehicle Type', key: 'vehicleType' },
@@ -741,20 +767,16 @@ const handleBulkAdd = async () => {
     sheet.getRow(1).font = { bold: true };
     sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
 
-    let totalRows = 0;
     MONTHS.forEach(m => {
       const rows = monthToRowsMap[m] || [];
-      console.log(`Adding ${rows.length} rows for ${m}`);
       rows.forEach(r => {
         sheet.addRow({ year, month: m, ...r });
-        totalRows++;
       });
     });
 
     sheet.getColumn('shippingCharge').numFmt = '$#,##0.00';
     autosizeColumns(sheet, { min: 10, max: 40, buffer: 2 });
 
-    console.log(`All Rows sheet complete: ${totalRows} total rows`);
     return sheet;
   };
 
@@ -812,24 +834,31 @@ const handleBulkAdd = async () => {
     const capture = async (node) =>
       node ? await toPng(node, { cacheBust: true, backgroundColor: 'white', pixelRatio: 2 }) : null;
 
-    // Temporarily enable stats if they're hidden to capture screenshots
     const statsWereHidden = !statusEnabled;
     if (statsWereHidden) {
       setStatusEnabled(true);
-      // Wait for DOM to update
       await new Promise(resolve => setTimeout(resolve, 100));
     }
 
-    const [imgCostPerCompany, imgShipmentCount, imgRevenueDist, imgClientStats, imgAgentStats, imgCityStats] = await Promise.all([
-      capture(costPerCompanyRef.current),
-      capture(shipmentCountRef.current),
-      capture(revenueDistRef.current),
-      capture(clientStatsRef.current),
-      capture(agentStatsRef.current),
-      capture(cityStatsRef.current),
-    ]);
+    const [
+  imgCostPerCompany,
+  imgShipmentCount,
+  imgRevenueDist,
+  imgClientStats,
+  imgAgentStats,
+  imgCityStats,
+  imgStateStats,
+] = await Promise.all([
+  capture(costPerCompanyRef.current),
+  capture(shipmentCountRef.current),
+  capture(revenueDistRef.current),
+  capture(clientStatsRef.current),
+  capture(agentStatsRef.current),
+  capture(cityStatsRef.current),
+  capture(stateStatsRef.current),
+]);
 
-    // Restore previous state
+
     if (statsWereHidden) {
       setStatusEnabled(false);
     }
@@ -891,6 +920,7 @@ const handleBulkAdd = async () => {
     addImg(imgClientStats, 50, 0, 900, 350);
     addImg(imgAgentStats, 66, 0, 900, 350);
     addImg(imgCityStats, 82, 0, 900, 350);
+	addImg(imgStateStats,     98, 0, 900, 350);
 
     const buf = await wb.xlsx.writeBuffer();
     downloadBlob(
@@ -904,32 +934,21 @@ const handleBulkAdd = async () => {
       const wb = new ExcelJS.Workbook();
       const monthToRowsMap = {};
 
-      console.log('Starting export...');
       for (const month of MONTHS) {
         const docSnap = await getDoc(monthDocRef(selectedYear, month));
         const list = docSnap.exists() ? docSnap.data().shipments || [] : [];
         const rows = mapRowsForExcel(list);
-        
         monthToRowsMap[month] = rows;
-        console.log(`${month}: ${rows.length} rows collected`);
-        
         buildDataSheetPretty(wb, `${month} ${selectedYear}`, rows);
       }
 
-      const totalRecords = Object.values(monthToRowsMap).reduce((sum, rows) => sum + rows.length, 0);
-      console.log(`Total records across all months: ${totalRecords}`);
-
-      console.log('Creating All Rows sheet...');
       buildAllRowsSheet(wb, selectedYear, monthToRowsMap);
-      console.log(`Workbook now has ${wb.worksheets.length} worksheets`);
 
       const buf = await wb.xlsx.writeBuffer();
       downloadBlob(
         new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
         `freight-${selectedYear}-all-months-${new Date().toISOString().split('T')[0]}.xlsx`
       );
-      
-      console.log('Export complete!');
     } catch (error) {
       console.error('Export failed:', error);
       alert(`Export failed: ${error.message}`);
@@ -944,6 +963,7 @@ const handleBulkAdd = async () => {
     'location': 'location',
     'return location': 'returnLocation',
     'city': 'city',
+    'state': 'state',
     'company': 'company',
     'ship method': 'shipMethod',
     'vehicle type': 'vehicleType',
@@ -978,6 +998,7 @@ const handleBulkAdd = async () => {
         location: '',
         returnLocation: '',
         city: '',
+        state: '',
         company: '',
         shipMethod: '',
         vehicleType: '',
@@ -1001,7 +1022,7 @@ const handleBulkAdd = async () => {
             s[field] = toISODateUTC(d);
           } else {
             const str = String(v).trim();
-            if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+            if (/^\\d{4}-\\d{2}-\\d{2}$/.test(str)) {
               s[field] = str;
             } else {
               const d = new Date(str);
@@ -1019,6 +1040,14 @@ const handleBulkAdd = async () => {
           s.shippingCharge = isNaN(num) ? 0 : num;
         } else if (key === 'shipDate' || key === 'returnDate') {
           setDateSafely(val, key);
+        } else if (key === 'state') {
+          const usStateRE = /^[A-Za-z]{2}$/;
+          let v = val == null ? '' : String(val);
+          v = v.toUpperCase().slice(0,2);
+          if (!usStateRE.test(v)) {
+            // leave uppercase 2 letters; allow non-standard if needed
+          }
+          s.state = v;
         } else {
           s[key] = val == null ? '' : String(val);
         }
@@ -1053,8 +1082,8 @@ const handleBulkAdd = async () => {
       for (const sheet of wb.worksheets) {
         const name = (sheet.name || '').trim();
 
-        if (!/^([A-Za-z]+)\s+(\d{4})$/.test(name)) continue;
-        const [, monthName, yearStr] = name.match(/^([A-Za-z]+)\s+(\d{4})$/) || [];
+        if (!/^([A-Za-z]+)\\s+(\\d{4})$/.test(name)) continue;
+        const [, monthName, yearStr] = name.match(/^([A-Za-z]+)\\s+(\\d{4})$/) || [];
         if (!MONTHS.includes(monthName)) continue;
 
         const yearNum = parseInt(yearStr, 10);
@@ -1076,8 +1105,8 @@ const handleBulkAdd = async () => {
       } else {
         const lines = changed
           .sort((a, b) => (a.year - b.year) || (MONTHS.indexOf(a.month) - MONTHS.indexOf(b.month)))
-          .map(c => `${c.month} ${c.year}: ${c.count} rows`).join('\n');
-        alert(`Import complete:\n${lines}`);
+          .map(c => `${c.month} ${c.year}: ${c.count} rows`).join('\\n');
+        alert(`Import complete:\\n${lines}`);
       }
     } catch (err) {
       console.error('Import failed:', err);
@@ -1087,8 +1116,6 @@ const handleBulkAdd = async () => {
     }
   };
   
-  
-
   const companySummary = (() => {
     const summary = {};
     shipments.forEach((s) => {
@@ -1132,6 +1159,24 @@ const handleBulkAdd = async () => {
       .sort((a, b) => a.agent.localeCompare(b.agent));
   })();
 
+  const stateSummary = (() => {
+  const summary = {};
+  shipments.forEach((s) => {
+    const st = (s.state || '').trim();
+    if (!st) return;
+    const key = st.toUpperCase();
+    if (!summary[key]) summary[key] = { count: 0, total: 0 };
+    summary[key].count += 1;
+    summary[key].total += Number(s.shippingCharge || 0);
+  });
+  return Object.entries(summary)
+    .map(([state, data]) => ({ state, ...data }))
+    .sort((a, b) => a.state.localeCompare(b.state));
+})();
+
+
+
+ 
   const citySummary = (() => {
     const summary = {};
     shipments.forEach((s) => {
@@ -1152,6 +1197,7 @@ const handleBulkAdd = async () => {
   const maxClientCount = Math.max(...clientSummary.map((c) => c.count), 1);
   const maxAgentCount = Math.max(...agentSummary.map((c) => c.count), 1);
   const maxCityCount = Math.max(...citySummary.map((c) => c.count), 1);
+  const maxStateCount = Math.max(...stateSummary.map((c) => c.count), 1);
   const chartColors = [
     '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981',
     '#06b6d4', '#6366f1', '#f97316', '#14b8a6', '#f43f5e',
@@ -1179,13 +1225,12 @@ const handleBulkAdd = async () => {
       }
 
       if (sortConfig.key === 'shipDate' || sortConfig.key === 'returnDate') {
-        // Handle blank dates - put them first
         const aIsBlank = !aVal || aVal === '';
         const bIsBlank = !bVal || bVal === '';
         
         if (aIsBlank && bIsBlank) return 0;
-        if (aIsBlank) return sortConfig.direction === 'asc' ? -1 : 1; // Blanks always first
-        if (bIsBlank) return sortConfig.direction === 'asc' ? 1 : -1; // Blanks always first
+        if (aIsBlank) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (bIsBlank) return sortConfig.direction === 'asc' ? 1 : -1;
         
         const aDate = new Date(aVal).getTime();
         const bDate = new Date(bVal).getTime();
@@ -1238,7 +1283,8 @@ const handleBulkAdd = async () => {
       field === 'location' ||
       field === 'returnLocation' ||
       field === 'city' ||
-	  field === 'client' ||
+      field === 'state' ||
+      field === 'client' ||
       field === 'shipMethod' ||
       field === 'vehicleType';
 
@@ -1258,9 +1304,11 @@ const handleBulkAdd = async () => {
               border: '2px solid #3b82f6',
               outline: 'none',
               fontSize: '12px',
+              textTransform: field === 'state' ? 'uppercase' : 'none',
             }}
             step={isNumeric ? '0.01' : undefined}
             autoComplete="off"
+            maxLength={field === 'state' ? 2 : undefined}
           />
           {hasAutocomplete && showDropdown && filteredOptions.length > 0 && dropdownRect &&
             createPortal(
@@ -1314,204 +1362,203 @@ const handleBulkAdd = async () => {
     );
   };
 
- const BulkAddModal = () => {
-  if (!bulkAddModal.open) return null;
+  const BulkAddModal = () => {
+    if (!bulkAddModal.open) return null;
 
-  return createPortal(
-    <div 
-      role="dialog" aria-modal="true"
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'rgba(0,0,0,0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 10000,
-        isolation: 'isolate',
-      }}
-      onClick={() => setBulkAddModal({ open: false, type: '', items: '' })}
-    >
+    return createPortal(
       <div 
+        role="dialog" aria-modal="true"
         style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '24px',
-          width: '90%',
-          maxWidth: '600px',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
           isolation: 'isolate',
         }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={() => setBulkAddModal({ open: false, type: '', items: '' })}
       >
-        <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' }}>
-          Bulk Add {bulkAddModal.type.charAt(0).toUpperCase() + bulkAddModal.type.slice(1)}s
-        </h3>
-
-        <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '12px' }}>
-          Enter one {bulkAddModal.type} per line. Duplicates will be automatically skipped.
-        </p>
-
-        {/* textarea replaces input so text starts at the top-left */}
-        <textarea
-          value={bulkAddModal.items}
-          onChange={(e) => {
-            console.log('Input value:', e.target.value); // Debug log
-            setBulkAddModal({ ...bulkAddModal, items: e.target.value });
-          }}
-          placeholder="Type here..."
+        <div 
           style={{
-            width: '100%',
-            height: '200px',           // use height (or minHeight) with textarea
-            padding: '12px',
-            border: '1px solid #cbd5e1',
-            borderRadius: '8px',
-            fontSize: '14px',
-            fontFamily: 'Arial, sans-serif',
-            marginBottom: '16px',
-            boxSizing: 'border-box',
-            resize: 'vertical',
-            lineHeight: 1.4,
+            background: 'white',
+            borderRadius: '12px',
+            padding: '24px',
+            width: '90%',
+            maxWidth: '600px',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            isolation: 'isolate',
           }}
-          autoFocus
-        />
-        
-               
-        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-          <button
-            onClick={() => setBulkAddModal({ open: false, type: '', items: '' })}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' }}>
+            Bulk Add {bulkAddModal.type.charAt(0).toUpperCase() + bulkAddModal.type.slice(1)}s
+          </h3>
+
+          <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '12px' }}>
+            Enter one {bulkAddModal.type} per line. Duplicates will be automatically skipped.
+          </p>
+
+          <textarea
+            value={bulkAddModal.items}
+            onChange={(e) => setBulkAddModal({ ...bulkAddModal, items: e.target.value })}
+            placeholder="Type here..."
             style={{
-              padding: '8px 16px',
-              background: '#e2e8f0',
-              color: '#475569',
-              border: 'none',
+              width: '100%',
+              height: '200px',
+              padding: '12px',
+              border: '1px solid #cbd5e1',
               borderRadius: '8px',
               fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer',
+              fontFamily: 'Arial, sans-serif',
+              marginBottom: '16px',
+              boxSizing: 'border-box',
+              resize: 'vertical',
+              lineHeight: 1.4,
             }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleBulkAdd}
-            style={{
-              padding: '8px 16px',
-              background: '#3b82f6',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer',
-            }}
-          >
-            Add All
-          </button>
+            autoFocus
+          />
+                  
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => setBulkAddModal({ open: false, type: '', items: '' })}
+              style={{
+                padding: '8px 16px',
+                background: '#e2e8f0',
+                color: '#475569',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleBulkAdd}
+              style={{
+                padding: '8px 16px',
+                background: '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+              }}
+            >
+              Add All
+            </button>
+          </div>
         </div>
-      </div>
-    </div>,
-    document.body
-  );
-};
+      </div>,
+      document.body
+    );
+  };
   
   if (!isAuthenticated) {
-  return <PasswordLogin onLogin={handleLogin} />;
-}
+    return <PasswordLogin onLogin={handleLogin} />;
+  }
 
-return (
-  <div style={{ minHeight: '100vh', background: 'white' }}>
-    <div style={{ maxWidth: '98%', margin: '0 auto', padding: '16px' }}>
-      <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-        <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1e293b' }}>
-            {selectedYear} Freight Booked by Company
-          </h1>
-          <p style={{ fontSize: '14px', color: '#64748b' }}>
-            {selectedMonth} {selectedYear}
-            {isSaving && !isYTD && <span style={{ fontSize: '11px', color: '#f59e0b', marginLeft: '8px' }}>💾 Saving...</span>}
-            {!isSaving && lastSaved && !isYTD && <span style={{ fontSize: '11px', color: '#10b981', marginLeft: '8px' }}>✓ Saved at {lastSaved}</span>}
-            {isYTD && <span style={{ fontSize: '11px', color: '#475569', marginLeft: '8px' }}>YTD view • rows are read-only</span>}
-            <span style={{ fontSize: '11px', color: '#3b82f6', marginLeft: '8px' }}>🌐 Multi-user enabled</span>
-            <span style={{ 
-              fontSize: '11px', 
-              color: 'white',
-              background: statusEnabled ? '#10b981' : '#64748b',
-              padding: '2px 8px',
-              borderRadius: '4px',
-              marginLeft: '8px',
-              fontWeight: '600'
-            }}>
-              {statusEnabled ? '📊 Stats Visible' : '📊 Stats Hidden'}
-            </span>
-          </p>
+  return (
+    <div style={{ minHeight: '100vh', background: 'white' }}>
+      <div style={{ maxWidth: '98%', margin: '0 auto', padding: '16px' }}>
+        <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1e293b' }}>
+              {selectedYear} Freight Booked by Company
+            </h1>
+            <p style={{ fontSize: '14px', color: '#64748b' }}>
+              {selectedMonth} {selectedYear}
+              {isSaving && !isYTD && <span style={{ fontSize: '11px', color: '#f59e0b', marginLeft: '8px' }}>💾 Saving...</span>}
+              {!isSaving && lastSaved && !isYTD && <span style={{ fontSize: '11px', color: '#10b981', marginLeft: '8px' }}>✓ Saved at {lastSaved}</span>}
+              {isYTD && <span style={{ fontSize: '11px', color: '#475569', marginLeft: '8px' }}>YTD view • rows are read-only</span>}
+              <span style={{ fontSize: '11px', color: '#3b82f6', marginLeft: '8px' }}>🌐 Multi-user enabled</span>
+              <span style={{ 
+                fontSize: '11px', 
+                color: 'white',
+                background: statusEnabled ? '#10b981' : '#64748b',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                marginLeft: '8px',
+                fontWeight: '600'
+              }}>
+                {statusEnabled ? '📊 Stats Visible' : '📊 Stats Hidden'}
+              </span>
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button onClick={handleLogout} style={{ padding: '8px 16px', background: '#64748b', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+              🔒 Logout
+            </button>
+
+            <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} style={{ padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
+              {YEAR_OPTIONS.map((y) => (<option key={y} value={y}>{y}</option>))}
+            </select>
+
+            <select value={selectedMonth} onChange={(e) => handleMonthChange(e.target.value)} style={{ padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
+              {MONTHS_WITH_YTD.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+
+            {isYTD && (
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <label style={{ fontSize: 12, color: '#475569' }}>Edit to month:</label>
+                <select value={editTargetMonth} onChange={(e) => setEditTargetMonth(e.target.value)} style={{ padding: '6px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 13 }}>
+                  {MONTHS.map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+            )}
+
+            <button onClick={() => setBulkAddModal({ open: true, type: 'company', items: '' })} style={{ padding: '8px 12px', background: '#0f766e', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add companies (one per line)">
+              + Add Company
+            </button>
+
+            <button onClick={() => setBulkAddModal({ open: true, type: 'location', items: '' })} style={{ padding: '8px 12px', background: '#155e75', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add locations (one per line)">
+              + Add Location
+            </button>
+
+            <button onClick={() => setBulkAddModal({ open: true, type: 'agent', items: '' })} style={{ padding: '8px 12px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title='Add agents (e.g., "J.DOE" or "John Doe" per line)'>
+              + Add Agent
+            </button>
+
+            <button onClick={() => setBulkAddModal({ open: true, type: 'city', items: '' })} style={{ padding: '8px 12px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add cities (one per line)">
+              + Add City
+            </button>
+
+            <button onClick={() => setBulkAddModal({ open: true, type: 'state', items: '' })} style={{ padding: '8px 12px', background: '#6b7280', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add states (2-letter codes, one per line)">
+              + Add State
+            </button>
+
+            <button onClick={() => setBulkAddModal({ open: true, type: 'client', items: '' })} style={{ padding: '8px 12px', background: '#db2777', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add clients (one per line)">
+              + Add Client
+            </button>
+
+            <button onClick={exportMonthExcel} style={{ padding: '8px 12px', background: '#166534', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+              ⬇️ Export {isYTD ? 'YTD' : 'Month'} (Excel)
+            </button>
+
+            <button onClick={exportAllMonthsExcel} style={{ padding: '8px 12px', background: '#047857', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+              ⬇️ Export All (Excel)
+            </button>
+
+            <input ref={fileInputRef} type="file" accept=".xlsx" onChange={onImportFileChange} style={{ display: 'none' }} />
+            
+            <button onClick={onClickImport} disabled={isImporting} style={{ padding: '8px 12px', background: isImporting ? '#9ca3af' : '#312e81', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: isImporting ? 'not-allowed' : 'pointer' }}>
+              {isImporting ? '⏳ Importing…' : '⬆️ Import All (Excel)'}
+            </button>
+            
+            <button onClick={() => setStatusEnabled(!statusEnabled)} style={{ padding: '8px 16px', background: statusEnabled ? '#10b981' : '#64748b', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }} title={statusEnabled ? 'Click to hide statistics' : 'Click to show statistics'}>
+              <span style={{ fontSize: '16px' }}>{statusEnabled ? '👁️' : '👁️‍🗨️'}</span>
+              {statusEnabled ? 'Hide Stats' : 'Show Stats'}
+            </button>
+          </div>
         </div>
-
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <button onClick={handleLogout} style={{ padding: '8px 16px', background: '#64748b', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
-            🔒 Logout
-          </button>
-
-          <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} style={{ padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
-            {YEAR_OPTIONS.map((y) => (<option key={y} value={y}>{y}</option>))}
-          </select>
-
-          <select value={selectedMonth} onChange={(e) => handleMonthChange(e.target.value)} style={{ padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
-            {MONTHS_WITH_YTD.map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
-
-          {isYTD && (
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <label style={{ fontSize: 12, color: '#475569' }}>Edit to month:</label>
-              <select value={editTargetMonth} onChange={(e) => setEditTargetMonth(e.target.value)} style={{ padding: '6px 12px', border: '1px solid #cbd5e1', borderRadius: 8, fontSize: 13 }}>
-                {MONTHS.map((m) => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-          )}
-
-          <button onClick={() => setBulkAddModal({ open: true, type: 'company', items: '' })} style={{ padding: '8px 12px', background: '#0f766e', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add companies (one per line)">
-            + Add Company
-          </button>
-
-          <button onClick={() => setBulkAddModal({ open: true, type: 'location', items: '' })} style={{ padding: '8px 12px', background: '#155e75', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add locations (one per line)">
-            + Add Location
-          </button>
-
-          <button onClick={() => setBulkAddModal({ open: true, type: 'agent', items: '' })} style={{ padding: '8px 12px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title='Add agents (e.g., "J.DOE" or "John Doe" per line)'>
-            + Add Agent
-          </button>
-
-          <button onClick={() => setBulkAddModal({ open: true, type: 'city', items: '' })} style={{ padding: '8px 12px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add cities (one per line)">
-            + Add City
-          </button>
-
-          <button onClick={() => setBulkAddModal({ open: true, type: 'client', items: '' })} style={{ padding: '8px 12px', background: '#db2777', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add clients (one per line)">
-            + Add Client
-          </button>
-
-          <button onClick={exportMonthExcel} style={{ padding: '8px 12px', background: '#166534', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
-            ⬇️ Export {isYTD ? 'YTD' : 'Month'} (Excel)
-          </button>
-
-          <button onClick={exportAllMonthsExcel} style={{ padding: '8px 12px', background: '#047857', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
-            ⬇️ Export All (Excel)
-          </button>
-
-          <input ref={fileInputRef} type="file" accept=".xlsx" onChange={onImportFileChange} style={{ display: 'none' }} />
-          
-          <button onClick={onClickImport} disabled={isImporting} style={{ padding: '8px 12px', background: isImporting ? '#9ca3af' : '#312e81', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: isImporting ? 'not-allowed' : 'pointer' }}>
-            {isImporting ? '⏳ Importing…' : '⬆️ Import All (Excel)'}
-          </button>
-          
-          <button onClick={() => setStatusEnabled(!statusEnabled)} style={{ padding: '8px 16px', background: statusEnabled ? '#10b981' : '#64748b', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }} title={statusEnabled ? 'Click to hide statistics' : 'Click to show statistics'}>
-            <span style={{ fontSize: '16px' }}>{statusEnabled ? '👁️' : '👁️‍🗨️'}</span>
-            {statusEnabled ? 'Hide Stats' : 'Show Stats'}
-          </button>
-        </div>
-      </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
           <div style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: '12px', padding: '20px', color: 'white', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
@@ -1819,6 +1866,66 @@ return (
             </div>
           </>
         )}
+		
+		<div ref={stateStatsRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
+  <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Shipments by State</h3>
+  {stateSummary.length > 0 ? (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+      <div>
+        <table style={{ width: '100%', fontSize: '12px' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+              <th style={{ textAlign: 'left', padding: '4px', fontWeight: '600' }}>State</th>
+              <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Shipments</th>
+              <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Total Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stateSummary.map((item, idx) => (
+              <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
+                <td style={{ padding: '4px' }}>{item.state}</td>
+                <td style={{ textAlign: 'right', padding: '4px' }}>{item.count}</td>
+                <td style={{ textAlign: 'right', padding: '4px' }}>
+                  ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div>
+        <h4 style={{ fontSize: '12px', fontWeight: '600', marginBottom: '12px', color: '#475569' }}>Shipment Count by State</h4>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {stateSummary.map((item, idx) => (
+            <div key={idx}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', fontSize: '10px' }}>
+                <span style={{ fontWeight: '600', color: '#475569' }}>{item.state}</span>
+                <span style={{ color: '#64748b' }}>{item.count}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <div style={{ flex: 1, height: '20px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div
+                    style={{
+                      width: `${(item.count / maxStateCount) * 100}%`,
+                      height: '100%',
+                      background: chartColors[idx % chartColors.length],
+                      borderRadius: '4px',
+                      transition: 'width 0.3s ease',
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  ) : (
+    <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No state data for {selectedMonth}</p>
+  )}
+</div>
+
 
         <div style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px' }}>
           <div style={{ background: '#1d4ed8', color: 'white', padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTopLeftRadius: '8px', borderTopRightRadius: '8px' }}>
@@ -1856,6 +1963,9 @@ return (
                   <th onClick={() => handleSort('city')} style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>
                     CITY{getSortIcon('city')}
                   </th>
+                  <th onClick={() => handleSort('state')} style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>
+                    STATE{getSortIcon('state')}
+                  </th>
                   <th onClick={() => handleSort('company')} style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>
                     COMPANY{getSortIcon('company')}
                   </th>
@@ -1890,6 +2000,7 @@ return (
                         <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'location', shipment.location)}</td>
                         <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'returnLocation', shipment.returnLocation)}</td>
                         <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'city', shipment.city || '')}</td>
+                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'state', shipment.state || '')}</td>
                         <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'company', shipment.company)}</td>
                         <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'shipMethod', shipment.shipMethod)}</td>
                         <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'vehicleType', shipment.vehicleType)}</td>
@@ -1911,7 +2022,7 @@ return (
                   })
                 ) : (
                   <tr>
-                    <td colSpan="14" style={{ border: '1px solid #cbd5e1', padding: '40px', textAlign: 'center', color: '#64748b', fontSize: '14px' }}>
+                    <td colSpan="15" style={{ border: '1px solid #cbd5e1', padding: '40px', textAlign: 'center', color: '#64748b', fontSize: '14px' }}>
                       No shipments for {selectedMonth}. {isYTD ? 'YTD aggregates all months.' : 'Click "Add Row" to start entering data.'}
                     </td>
                   </tr>
@@ -1934,9 +2045,10 @@ return (
           </div>
         </div>
       </div>
-	  <BulkAddModal />
+      <BulkAddModal />
     </div>
   );
 }
 
 export default App;
+
