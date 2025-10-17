@@ -8,7 +8,7 @@ import {
 
 // Stable palette outside component so hooks don't depend on it
 const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#6366f1', '#f97316', '#14b8a6', '#f43f5e'];
-
+const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function EnhancedAnalytics({
   shipments = [],
   selectedYear,
@@ -30,7 +30,7 @@ function EnhancedAnalytics({
   const [chartType, setChartType] = useState('bar'); // 'bar', 'line', 'pie', 'area'
 
   // --- NEW: helpers for dates/months ---
-  const monthShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+ 
   const parseShipDate = (s) => {
     const raw = s?.shipDate ?? s?.date ?? s?.createdAt ?? s?.updatedAt;
     const d = raw instanceof Date ? raw : new Date(raw);
@@ -320,7 +320,7 @@ function EnhancedAnalytics({
     // decorate for charts
     return arr.map((r, idx) => ({
       ...r,
-      name: `${monthShort[r.month]} ${String(r.year).slice(-2)}`, // e.g., "Oct 25"
+      name: `${MONTH_SHORT[r.month]} ${String(r.year).slice(-2)}`, // e.g., "Oct 25"
       fill: COLORS[idx % COLORS.length],
     }));
   }, [shipments]);
@@ -330,12 +330,7 @@ function EnhancedAnalytics({
     return monthlySeries.filter(r => r.year === Number(yearForMonthly));
   }, [monthlySeries, yearForMonthly]);
 
-  // If a selectedMonth prop is provided, find that point for highlighting (optional)
-  const selectedMonthIndex = useMemo(() => {
-    if (!selectedMonth) return -1;
-    const idx = monthlyForYear.findIndex(r => (r.month + 1) === Number(selectedMonth));
-    return idx;
-  }, [monthlyForYear, selectedMonth]);
+
 
   // --- UI sub-renders ---
 
