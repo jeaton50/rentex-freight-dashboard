@@ -7,7 +7,7 @@ import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import PasswordLogin from './PasswordLogin';
-import Analytics from './Analytics';
+import EnhancedAnalytics from './Analytics';
 import './App.css';
 
 // ============================================
@@ -1467,17 +1467,17 @@ function App() {
   }
 
  if (showAnalytics) {
-    return (
-      <Analytics
-        shipments={shipments}
-        selectedYear={selectedYear}
-        selectedMonth={selectedMonth}
-        companies={companies}
-        agents={agents}
-        clients={clients}
-        cities={cities}
-        states={states}
-        onBack={() => setShowAnalytics(false)}
+  return (
+    <EnhancedAnalytics
+      shipments={shipments}
+      selectedYear={selectedYear}
+      selectedMonth={selectedMonth}
+      companies={companies}
+      agents={agents}
+      clients={clients}
+      cities={cities}
+      states={states}
+      onBack={() => setShowAnalytics(false)}
       />
     );
   }
@@ -2094,6 +2094,7 @@ function App() {
 }
 
 export default App;
+
 
 
 
