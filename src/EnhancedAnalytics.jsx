@@ -1,4 +1,4 @@
-// EnhancedAnalytics.jsx - With Beautiful Interactive Recharts (lint-clean)
+// EnhancedAnalytics.jsx - With Beautiful Interactive Recharts (with Monthly tab)
 import React, { useState, useMemo, useCallback } from 'react';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, AreaChart, Area,
@@ -23,12 +23,41 @@ function EnhancedAnalytics({
 }) {
   const [selectedTab, setSelectedTab] = useState('overview');
   const [selectedDimension, setSelectedDimension] = useState('company');
-  const [selectedEntities, setSelectedEntities] = useState([]); // <-- requested & now fully used
+  const [selectedEntities, setSelectedEntities] = useState([]); // used
   const [filterMinRevenue, setFilterMinRevenue] = useState(0);
   const [filterMaxRevenue, setFilterMaxRevenue] = useState(Infinity);
   const [quickFilter, setQuickFilter] = useState('all');
   const [chartType, setChartType] = useState('bar'); // 'bar', 'line', 'pie', 'area'
 
+  // --- NEW: helpers for dates/months ---
+  const monthShort = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const parseShipDate = (s) => {
+    const raw = s?.shipDate ?? s?.date ?? s?.createdAt ?? s?.updatedAt;
+    const d = raw instanceof Date ? raw : new Date(raw);
+    return isNaN(d.getTime()) ? null : d;
+  };
+  const toYM = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+
+  // Build a set of years present in shipments (fallback to selectedYear or current)
+  const yearsInData = useMemo(() => {
+    const set = new Set();
+    for (const s of shipments) {
+      const d = parseShipDate(s);
+      if (d) set.add(d.getFullYear());
+    }
+    return Array.from(set).sort((a,b)=>a-b);
+  }, [shipments]);
+
+  // If no year passed, pick the latest available or current year
+  const defaultYear = useMemo(() => {
+    if (selectedYear) return selectedYear;
+    if (yearsInData.length) return yearsInData[yearsInData.length-1];
+    return new Date().getFullYear();
+  }, [selectedYear, yearsInData]);
+
+  const [yearForMonthly, setYearForMonthly] = useState(defaultYear);
+
+  // Tabs (added "monthly")
   const tabs = [
     { id: 'overview', label: '📊 Overview' },
     { id: 'charts', label: '📈 Visual Charts' },
@@ -38,6 +67,7 @@ function EnhancedAnalytics({
     { id: 'breakdown', label: '🔍 Breakdown' },
     { id: 'individual', label: '👤 Individual' },
     { id: 'geographic', label: '🗺️ Geographic' },
+    { id: 'monthly', label: '🗓️ Monthly' }, // <--- NEW
   ];
 
   // Calculate comprehensive statistics
@@ -87,7 +117,6 @@ function EnhancedAnalytics({
   // Apply quick filters + entity selections
   const currentData = useMemo(() => {
     let data = stats[selectedDimension] || [];
-    // Apply entity selection if any
     if (selectedEntities.length) {
       const s = new Set(selectedEntities);
       data = data.filter(d => s.has(d.name));
@@ -109,7 +138,7 @@ function EnhancedAnalytics({
   const rankedByVolume  = useMemo(() => [...currentData].sort((a, b) => b.count - a.count), [currentData]);
   const rankedByAvg     = useMemo(() => [...currentData].sort((a, b) => b.avgPerShipment - a.avgPerShipment), [currentData]);
 
-  // Total metrics
+  // Totals
   const totalRevenue   = useMemo(() => shipments.reduce((sum, s) => sum + Number(s.shippingCharge || 0), 0), [shipments]);
   const totalShipments = shipments.length;
   const avgPerShipment = totalShipments > 0 ? totalRevenue / totalShipments : 0;
@@ -126,7 +155,7 @@ function EnhancedAnalytics({
     }));
   }, [rankedByRevenue]);
 
-  // Pie chart data
+  // Pie data
   const pieChartData = useMemo(() => {
     const topEntities = rankedByRevenue.slice(0, 8);
     const otherRevenue = rankedByRevenue.slice(8).reduce((sum, e) => sum + e.revenue, 0);
@@ -148,7 +177,7 @@ function EnhancedAnalytics({
     return data;
   }, [rankedByRevenue, totalRevenue]);
 
-  // Radar chart data (performance across metrics)
+  // Radar (top 5 normalized)
   const radarData = useMemo(() => {
     if (rankedByRevenue.length === 0) return [];
     const top5 = rankedByRevenue.slice(0, 5);
@@ -164,7 +193,7 @@ function EnhancedAnalytics({
     }));
   }, [rankedByRevenue]);
 
-  // Custom tooltip
+  // Tooltip
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
@@ -192,7 +221,7 @@ function EnhancedAnalytics({
     return null;
   };
 
-  // Custom pie label
+  // Pie label
   const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
     const x = cx + radius * Math.cos(-midAngle * Math.PI / 180);
@@ -212,7 +241,7 @@ function EnhancedAnalytics({
     );
   };
 
-  // Advanced Insights
+  // Insights
   const insights = useMemo(() => {
     const data = currentData;
     if (data.length === 0) return [];
@@ -274,13 +303,45 @@ function EnhancedAnalytics({
       .sort((a, b) => b.revenue - a.revenue);
   }, [stats.state, totalRevenue]);
 
-  // --- Tab renders ---
+  // --- NEW: Monthly aggregation ---
+  // seriesByYM: { 'YYYY-MM': { ym, year, month, revenue, count } }
+  const monthlySeries = useMemo(() => {
+    const bucket = new Map();
+    for (const s of shipments) {
+      const d = parseShipDate(s);
+      if (!d) continue;
+      const ym = toYM(d);
+      const prev = bucket.get(ym) || { ym, year: d.getFullYear(), month: d.getMonth(), revenue: 0, count: 0 };
+      prev.revenue += Number(s.shippingCharge || 0);
+      prev.count += 1;
+      bucket.set(ym, prev);
+    }
+    const arr = Array.from(bucket.values()).sort((a, b) => a.year - b.year || a.month - b.month);
+    // decorate for charts
+    return arr.map((r, idx) => ({
+      ...r,
+      name: `${monthShort[r.month]} ${String(r.year).slice(-2)}`, // e.g., "Oct 25"
+      fill: COLORS[idx % COLORS.length],
+    }));
+  }, [shipments]);
+
+  // months for selected year
+  const monthlyForYear = useMemo(() => {
+    return monthlySeries.filter(r => r.year === Number(yearForMonthly));
+  }, [monthlySeries, yearForMonthly]);
+
+  // If a selectedMonth prop is provided, find that point for highlighting (optional)
+  const selectedMonthIndex = useMemo(() => {
+    if (!selectedMonth) return -1;
+    const idx = monthlyForYear.findIndex(r => (r.month + 1) === Number(selectedMonth));
+    return idx;
+  }, [monthlyForYear, selectedMonth]);
+
+  // --- UI sub-renders ---
 
   const renderSelectionPills = () => {
     const base = stats[selectedDimension] || [];
-    // show top 30 by revenue for pill list (keeps UI snappy)
     const pillData = [...base].sort((a, b) => b.revenue - a.revenue).slice(0, 30);
-
     return (
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
         {pillData.map((d) => {
@@ -380,16 +441,7 @@ function EnhancedAnalytics({
               <YAxis style={{ fontSize: '12px' }} tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
               <Tooltip content={<CustomTooltip />} />
               <Legend wrapperStyle={{ paddingTop: '20px' }} />
-              <Line
-                type="monotone"
-                dataKey="revenue"
-                stroke="#3b82f6"
-                strokeWidth={3}
-                dot={{ fill: '#3b82f6', r: 6 }}
-                activeDot={{ r: 8 }}
-                name="Revenue"
-                animationDuration={1500}
-              />
+              <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={3} dot={{ fill: '#3b82f6', r: 6 }} activeDot={{ r: 8 }} name="Revenue" animationDuration={1500} />
             </LineChart>
           </ResponsiveContainer>
         )}
@@ -414,11 +466,7 @@ function EnhancedAnalytics({
                 ))}
               </Pie>
               <Tooltip content={<CustomTooltip />} />
-              <Legend
-                verticalAlign="bottom"
-                height={36}
-                formatter={(value, entry) => `${value} (${entry.payload.percentage}%)`}
-              />
+              <Legend verticalAlign="bottom" height={36} formatter={(value, entry) => `${value} (${entry.payload.percentage}%)`} />
             </PieChart>
           </ResponsiveContainer>
         )}
@@ -437,16 +485,7 @@ function EnhancedAnalytics({
               <YAxis style={{ fontSize: '12px' }} tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
               <Tooltip content={<CustomTooltip />} />
               <Legend wrapperStyle={{ paddingTop: '20px' }} />
-              <Area
-                type="monotone"
-                dataKey="revenue"
-                stroke="#3b82f6"
-                strokeWidth={2}
-                fillOpacity={1}
-                fill="url(#colorRevenue)"
-                name="Revenue"
-                animationDuration={1500}
-              />
+              <Area type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" name="Revenue" animationDuration={1500} />
             </AreaChart>
           </ResponsiveContainer>
         )}
@@ -689,6 +728,63 @@ function EnhancedAnalytics({
     </div>
   );
 
+  // --- NEW: Monthly tab render ---
+  const renderMonthly = () => (
+    <div style={{ padding: '24px' }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16 }}>
+        <h3 style={{ margin: 0, color: '#1e293b' }}>Monthly Trend</h3>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <select
+            value={yearForMonthly}
+            onChange={(e) => setYearForMonthly(Number(e.target.value))}
+            style={{ padding: '8px 12px', border: '1px solid #cbd5e1', borderRadius: 8 }}
+          >
+            {yearsInData.length ? yearsInData.map(y => <option key={y} value={y}>{y}</option>)
+              : <option value={defaultYear}>{defaultYear}</option>}
+          </select>
+        </div>
+      </div>
+
+      {/* Revenue over months */}
+      <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 12, padding: 24, marginBottom: 24 }}>
+        <h4 style={{ marginTop: 0, color: '#1e293b' }}>Revenue by Month ({yearForMonthly})</h4>
+        <ResponsiveContainer width="100%" height={320}>
+          <LineChart data={monthlyForYear}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <XAxis dataKey="name" style={{ fontSize: 12 }} />
+            <YAxis style={{ fontSize: 12 }} tickFormatter={(v)=>`$${(v/1000).toFixed(0)}k`} />
+            <Tooltip />
+            <Legend />
+            <Line
+              type="monotone"
+              dataKey="revenue"
+              name="Revenue"
+              stroke="#3b82f6"
+              strokeWidth={3}
+              dot={{ r: 5 }}
+              activeDot={{ r: 7 }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Shipments over months */}
+      <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: 12, padding: 24 }}>
+        <h4 style={{ marginTop: 0, color: '#1e293b' }}>Shipments by Month ({yearForMonthly})</h4>
+        <ResponsiveContainer width="100%" height={320}>
+          <BarChart data={monthlyForYear}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <XAxis dataKey="name" style={{ fontSize: 12 }} />
+            <YAxis style={{ fontSize: 12 }} />
+            <Tooltip />
+            <Legend />
+            <Bar dataKey="count" name="Shipments" fill="#10b981" radius={[8,8,0,0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+
   const renderGeographic = () => (
     <div style={{ padding: '24px' }}>
       <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>
@@ -740,7 +836,7 @@ function EnhancedAnalytics({
               📊 Enhanced Analytics with Interactive Charts
             </h1>
             <p style={{ fontSize: '14px', color: '#64748b' }}>
-              {selectedMonth} {selectedYear} • {totalShipments} shipments • ${totalRevenue.toLocaleString()} revenue
+              {selectedMonth ? `${monthShort[Number(selectedMonth)-1]} ` : ''}{selectedYear || ''}{selectedMonth || selectedYear ? ' • ' : ''}{totalShipments} shipments • ${totalRevenue.toLocaleString()} revenue
             </p>
           </div>
           <button
@@ -782,6 +878,7 @@ function EnhancedAnalytics({
         {selectedTab === 'insights'   && renderInsights()}
         {selectedTab === 'rankings'   && renderRankings()}
         {selectedTab === 'geographic' && renderGeographic()}
+        {selectedTab === 'monthly'    && renderMonthly()}
       </div>
     </div>
   );
