@@ -831,7 +831,7 @@ function EnhancedAnalytics({
               📊 Enhanced Analytics with Interactive Charts
             </h1>
             <p style={{ fontSize: '14px', color: '#64748b' }}>
-              {selectedMonth ? `${monthShort[Number(selectedMonth)-1]} ` : ''}{selectedYear || ''}{selectedMonth || selectedYear ? ' • ' : ''}{totalShipments} shipments • ${totalRevenue.toLocaleString()} revenue
+              {selectedMonth ? `${MONTH_SHORT[Number(selectedMonth)-1]} ` : ''}{selectedYear || ''}{selectedMonth || selectedYear ? ' • ' : ''}{totalShipments} shipments • ${totalRevenue.toLocaleString()} revenue
             </p>
           </div>
           <button
