@@ -14,9 +14,8 @@ function Analytics({
   onBack 
 }) {
   const [selectedTab, setSelectedTab] = useState('overview');
-  const [selectedDimension, setSelectedDimension] = useState('company');
-  const [selectedEntities, setSelectedEntities] = useState([]);
-  const [comparisonMetric, setComparisonMetric] = useState('revenue');
+const [selectedDimension, setSelectedDimension] = useState('company');
+const [selectedEntities, setSelectedEntities] = useState([]);
 
   const tabs = [
     { id: 'overview', label: '📊 Overview' },
