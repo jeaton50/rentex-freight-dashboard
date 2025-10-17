@@ -819,7 +819,3 @@ function RankingCard({ title, data, valueKey, formatter }) {
 }
 
 export default EnhancedAnalytics;
-
-
-
-
