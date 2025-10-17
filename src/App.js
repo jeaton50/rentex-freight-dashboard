@@ -7,6 +7,7 @@ import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import PasswordLogin from './PasswordLogin';
+import Analytics from './Analytics';
 import './App.css';
 
 // ============================================
@@ -150,7 +151,7 @@ function App() {
   const [dropdownRect, setDropdownRect] = useState(null);
   const [lastSaved, setLastSaved] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
-
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -1465,6 +1466,23 @@ function App() {
     return <PasswordLogin onLogin={handleLogin} />;
   }
 
+ if (showAnalytics) {
+    return (
+      <Analytics
+        shipments={shipments}
+        selectedYear={selectedYear}
+        selectedMonth={selectedMonth}
+        companies={companies}
+        agents={agents}
+        clients={clients}
+        cities={cities}
+        states={states}
+        onBack={() => setShowAnalytics(false)}
+      />
+    );
+  }
+
+
   return (
     <div style={{ minHeight: '100vh', background: 'white' }}>
       <div style={{ maxWidth: '98%', margin: '0 auto', padding: '16px' }}>
@@ -1514,6 +1532,31 @@ function App() {
                 </select>
               </div>
             )}
+
+			{/* ← ADD THIS ANALYTICS BUTTON HERE */}
+  <button 
+    onClick={() => setShowAnalytics(true)}
+    style={{ 
+      padding: '8px 16px', 
+      background: '#7c3aed', 
+      color: 'white', 
+      border: 'none', 
+      borderRadius: '8px', 
+      fontSize: '13px', 
+      fontWeight: '600', 
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px'
+    }}
+  >
+    <span>📊</span>
+    Analytics
+  </button>
+
+  <button onClick={() => setBulkAddModal({ open: true, type: 'company', items: '' })} style={{ padding: '8px 12px', background: '#0f766e', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add companies (one per line)">
+    + Add Company
+  </button>
 
             <button onClick={() => setBulkAddModal({ open: true, type: 'company', items: '' })} style={{ padding: '8px 12px', background: '#0f766e', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add companies (one per line)">
               + Add Company
@@ -1580,351 +1623,351 @@ function App() {
         </div>
 
         {statusEnabled && (
-  <>
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-      <div ref={costPerCompanyRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px' }}>
-        <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '12px', color: '#334155' }}>Shipping Cost Per Company</h3>
-        {companySummary.length > 0 ? (
-          <table style={{ width: '100%', fontSize: '12px' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                <th style={{ textAlign: 'left', padding: '4px', fontWeight: '600' }}>Company</th>
-                <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Total Cost</th>
-              </tr>
-            </thead>
-            <tbody>
-              {companySummary.map((item, idx) => (
-                <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '4px' }}>{item.company}</td>
-                  <td style={{ textAlign: 'right', padding: '4px' }}>
-                    ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </td>
-                </tr>
-              ))}
-              <tr style={{ fontWeight: 'bold', borderTop: '2px solid #cbd5e1' }}>
-                <td style={{ padding: '4px' }}>Total</td>
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+              <div ref={costPerCompanyRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px' }}>
+                <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '12px', color: '#334155' }}>Shipping Cost Per Company</h3>
+                {companySummary.length > 0 ? (
+                  <table style={{ width: '100%', fontSize: '12px' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                        <th style={{ textAlign: 'left', padding: '4px', fontWeight: '600' }}>Company</th>
+                        <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Total Cost</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {companySummary.map((item, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '4px' }}>{item.company}</td>
+                          <td style={{ textAlign: 'right', padding: '4px' }}>
+                            ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      ))}
+                      <tr style={{ fontWeight: 'bold', borderTop: '2px solid #cbd5e1' }}>
+                        <td style={{ padding: '4px' }}>Total</td>
+                        <td style={{ textAlign: 'right', padding: '4px' }}>
+                          ${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                ) : (
+                  <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No data for {selectedMonth}</p>
+                )}
+              </div>
+
+              <div ref={shipmentCountRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px' }}>
+                <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Shipment Count by Company</h3>
+                {companySummary.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {companySummary.map((item, idx) => (
+                      <div key={idx}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '11px' }}>
+                          <span style={{ fontWeight: '600', color: '#475569' }}>{item.company}</span>
+                          <span style={{ color: '#64748b' }}>{item.count} shipments</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ flex: 1, height: '28px', background: '#f1f5f9', borderRadius: '6px', overflow: 'hidden' }}>
+                            <div
+                              style={{
+                                width: `${(item.count / maxCount) * 100}%`,
+                                height: '100%',
+                                background: chartColors[idx % chartColors.length],
+                                borderRadius: '6px',
+                                transition: 'width 0.3s ease',
+                                boxShadow: `0 0 10px ${chartColors[idx % chartColors.length]}40`,
+                              }}
+                            />
+                          </div>
+                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155', minWidth: '30px', textAlign: 'right' }}>{item.count}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No data for {selectedMonth}</p>
+                )}
+              </div>
+            </div>
+
+            <div ref={revenueDistRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
+              <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Revenue Distribution by Company</h3>
+              {companySummary.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {companySummary.map((item, idx) => (
+                    <div key={idx}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '11px' }}>
+                        <span style={{ fontWeight: '600', color: '#475569' }}>{item.company}</span>
+                        <span style={{ color: '#64748b' }}>{totalCost > 0 ? ((item.total / totalCost) * 100).toFixed(1) : '0.0'}%</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ flex: 1, height: '32px', background: '#f1f5f9', borderRadius: '8px', overflow: 'hidden' }}>
+                          <div
+                            style={{
+                              width: `${totalCost > 0 ? (item.total / totalCost) * 100 : 0}%`,
+                              height: '100%',
+                              background: `linear-gradient(90deg, ${chartColors[idx % chartColors.length]}, ${chartColors[idx % chartColors.length]}dd)`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              paddingRight: '12px',
+                              justifyContent: 'flex-end',
+                              color: 'white',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              transition: 'width 0.5s ease',
+                              borderRadius: '8px',
+                            }}
+                          >
+                            ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No data for {selectedMonth}</p>
+              )}
+            </div>
+
+            <div ref={clientStatsRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
+              <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Shipments by Client</h3>
+              {clientSummary.length > 0 ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <table style={{ width: '100%', fontSize: '12px' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                          <th style={{ textAlign: 'left', padding: '4px', fontWeight: '600' }}>Client</th>
+                          <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Shipments</th>
+                          <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Total Cost</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {clientSummary.map((item, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
+                            <td style={{ padding: '4px' }}>{item.client}</td>
+                            <td style={{ textAlign: 'right', padding: '4px' }}>{item.count}</td>
+                            <td style={{ textAlign: 'right', padding: '4px' }}>
+                              ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div>
+                    <h4 style={{ fontSize: '12px', fontWeight: '600', marginBottom: '12px', color: '#475569' }}>Shipment Count by Client</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {clientSummary.map((item, idx) => (
+                        <div key={idx}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', fontSize: '10px' }}>
+                            <span style={{ fontWeight: '600', color: '#475569' }}>{item.client}</span>
+                            <span style={{ color: '#64748b' }}>{item.count}</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <div style={{ flex: 1, height: '20px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div
+                                style={{
+                                  width: `${(item.count / maxClientCount) * 100}%`,
+                                  height: '100%',
+                                  background: chartColors[idx % chartColors.length],
+                                  borderRadius: '4px',
+                                  transition: 'width 0.3s ease',
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No client data for {selectedMonth}</p>
+              )}
+            </div>
+
+            <div ref={agentStatsRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
+              <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Shipments by Agent</h3>
+              {agentSummary.length > 0 ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <table style={{ width: '100%', fontSize: '12px' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                          <th style={{ textAlign: 'left', padding: '4px', fontWeight: '600' }}>Agent</th>
+                          <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Shipments</th>
+                          <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Total Cost</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {agentSummary.map((item, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
+                            <td style={{ padding: '4px' }}>{item.agent}</td>
+                            <td style={{ textAlign: 'right', padding: '4px' }}>{item.count}</td>
+                            <td style={{ textAlign: 'right', padding: '4px' }}>
+                              ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div>
+                    <h4 style={{ fontSize: '12px', fontWeight: '600', marginBottom: '12px', color: '#475569' }}>Shipment Count by Agent</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {agentSummary.map((item, idx) => (
+                        <div key={idx}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', fontSize: '10px' }}>
+                            <span style={{ fontWeight: '600', color: '#475569' }}>{item.agent}</span>
+                            <span style={{ color: '#64748b' }}>{item.count}</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <div style={{ flex: 1, height: '20px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div
+                                style={{
+                                  width: `${(item.count / maxAgentCount) * 100}%`,
+                                  height: '100%',
+                                  background: chartColors[idx % chartColors.length],
+                                  borderRadius: '4px',
+                                  transition: 'width 0.3s ease',
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No agent data for {selectedMonth}</p>
+              )}
+            </div>
+
+            <div ref={cityStatsRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
+              <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Shipments by City</h3>
+              {citySummary.length > 0 ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <table style={{ width: '100%', fontSize: '12px' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                          <th style={{ textAlign: 'left', padding: '4px', fontWeight: '600' }}>City</th>
+                          <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Shipments</th>
+                          <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Total Cost</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {citySummary.map((item, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
+                            <td style={{ padding: '4px' }}>{item.city}</td>
+                            <td style={{ textAlign: 'right', padding: '4px' }}>{item.count}</td>
+                            <td style={{ textAlign: 'right', padding: '4px' }}>
+                              ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div>
+                    <h4 style={{ fontSize: '12px', fontWeight: '600', marginBottom: '12px', color: '#475569' }}>Shipment Count by City</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {citySummary.map((item, idx) => (
+                        <div key={idx}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', fontSize: '10px' }}>
+                            <span style={{ fontWeight: '600', color: '#475569' }}>{item.city}</span>
+                            <span style={{ color: '#64748b' }}>{item.count}</span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <div style={{ flex: 1, height: '20px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div
+                                style={{
+                                  width: `${(item.count / maxCityCount) * 100}%`,
+                                  height: '100%',
+                                  background: chartColors[idx % chartColors.length],
+                                  borderRadius: '4px',
+                                  transition: 'width 0.3s ease',
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No city data for {selectedMonth}</p>
+              )}
+            </div>
+          </>
+        )}
+		
+		<div ref={stateStatsRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
+  <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Shipments by State</h3>
+  {stateSummary.length > 0 ? (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+      <div>
+        <table style={{ width: '100%', fontSize: '12px' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+              <th style={{ textAlign: 'left', padding: '4px', fontWeight: '600' }}>State</th>
+              <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Shipments</th>
+              <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Total Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            {stateSummary.map((item, idx) => (
+              <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
+                <td style={{ padding: '4px' }}>{item.state}</td>
+                <td style={{ textAlign: 'right', padding: '4px' }}>{item.count}</td>
                 <td style={{ textAlign: 'right', padding: '4px' }}>
-                  ${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
               </tr>
-            </tbody>
-          </table>
-        ) : (
-          <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No data for {selectedMonth}</p>
-        )}
-      </div>
-
-      <div ref={shipmentCountRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px' }}>
-        <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Shipment Count by Company</h3>
-        {companySummary.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {companySummary.map((item, idx) => (
-              <div key={idx}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '11px' }}>
-                  <span style={{ fontWeight: '600', color: '#475569' }}>{item.company}</span>
-                  <span style={{ color: '#64748b' }}>{item.count} shipments</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ flex: 1, height: '28px', background: '#f1f5f9', borderRadius: '6px', overflow: 'hidden' }}>
-                    <div
-                      style={{
-                        width: `${(item.count / maxCount) * 100}%`,
-                        height: '100%',
-                        background: chartColors[idx % chartColors.length],
-                        borderRadius: '6px',
-                        transition: 'width 0.3s ease',
-                        boxShadow: `0 0 10px ${chartColors[idx % chartColors.length]}40`,
-                      }}
-                    />
-                  </div>
-                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155', minWidth: '30px', textAlign: 'right' }}>{item.count}</span>
-                </div>
-              </div>
             ))}
-          </div>
-        ) : (
-          <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No data for {selectedMonth}</p>
-        )}
+          </tbody>
+        </table>
       </div>
-    </div>
 
-    <div ref={revenueDistRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
-      <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Revenue Distribution by Company</h3>
-      {companySummary.length > 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {companySummary.map((item, idx) => (
+      <div>
+        <h4 style={{ fontSize: '12px', fontWeight: '600', marginBottom: '12px', color: '#475569' }}>Shipment Count by State</h4>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {stateSummary.map((item, idx) => (
             <div key={idx}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '11px' }}>
-                <span style={{ fontWeight: '600', color: '#475569' }}>{item.company}</span>
-                <span style={{ color: '#64748b' }}>{totalCost > 0 ? ((item.total / totalCost) * 100).toFixed(1) : '0.0'}%</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', fontSize: '10px' }}>
+                <span style={{ fontWeight: '600', color: '#475569' }}>{item.state}</span>
+                <span style={{ color: '#64748b' }}>{item.count}</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ flex: 1, height: '32px', background: '#f1f5f9', borderRadius: '8px', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <div style={{ flex: 1, height: '20px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
                   <div
                     style={{
-                      width: `${totalCost > 0 ? (item.total / totalCost) * 100 : 0}%`,
+                      width: `${(item.count / maxStateCount) * 100}%`,
                       height: '100%',
-                      background: `linear-gradient(90deg, ${chartColors[idx % chartColors.length]}, ${chartColors[idx % chartColors.length]}dd)`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      paddingRight: '12px',
-                      justifyContent: 'flex-end',
-                      color: 'white',
-                      fontSize: '11px',
-                      fontWeight: 'bold',
-                      transition: 'width 0.5s ease',
-                      borderRadius: '8px',
+                      background: chartColors[idx % chartColors.length],
+                      borderRadius: '4px',
+                      transition: 'width 0.3s ease',
                     }}
-                  >
-                    ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
+                  />
                 </div>
               </div>
             </div>
           ))}
         </div>
-      ) : (
-        <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No data for {selectedMonth}</p>
-      )}
+      </div>
     </div>
-
-    <div ref={clientStatsRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
-      <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Shipments by Client</h3>
-      {clientSummary.length > 0 ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          <div>
-            <table style={{ width: '100%', fontSize: '12px' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <th style={{ textAlign: 'left', padding: '4px', fontWeight: '600' }}>Client</th>
-                  <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Shipments</th>
-                  <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Total Cost</th>
-                </tr>
-              </thead>
-              <tbody>
-                {clientSummary.map((item, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
-                    <td style={{ padding: '4px' }}>{item.client}</td>
-                    <td style={{ textAlign: 'right', padding: '4px' }}>{item.count}</td>
-                    <td style={{ textAlign: 'right', padding: '4px' }}>
-                      ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div>
-            <h4 style={{ fontSize: '12px', fontWeight: '600', marginBottom: '12px', color: '#475569' }}>Shipment Count by Client</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {clientSummary.map((item, idx) => (
-                <div key={idx}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', fontSize: '10px' }}>
-                    <span style={{ fontWeight: '600', color: '#475569' }}>{item.client}</span>
-                    <span style={{ color: '#64748b' }}>{item.count}</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <div style={{ flex: 1, height: '20px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                      <div
-                        style={{
-                          width: `${(item.count / maxClientCount) * 100}%`,
-                          height: '100%',
-                          background: chartColors[idx % chartColors.length],
-                          borderRadius: '4px',
-                          transition: 'width 0.3s ease',
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No client data for {selectedMonth}</p>
-      )}
-    </div>
-
-    <div ref={agentStatsRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
-      <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Shipments by Agent</h3>
-      {agentSummary.length > 0 ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          <div>
-            <table style={{ width: '100%', fontSize: '12px' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <th style={{ textAlign: 'left', padding: '4px', fontWeight: '600' }}>Agent</th>
-                  <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Shipments</th>
-                  <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Total Cost</th>
-                </tr>
-              </thead>
-              <tbody>
-                {agentSummary.map((item, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
-                    <td style={{ padding: '4px' }}>{item.agent}</td>
-                    <td style={{ textAlign: 'right', padding: '4px' }}>{item.count}</td>
-                    <td style={{ textAlign: 'right', padding: '4px' }}>
-                      ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div>
-            <h4 style={{ fontSize: '12px', fontWeight: '600', marginBottom: '12px', color: '#475569' }}>Shipment Count by Agent</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {agentSummary.map((item, idx) => (
-                <div key={idx}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', fontSize: '10px' }}>
-                    <span style={{ fontWeight: '600', color: '#475569' }}>{item.agent}</span>
-                    <span style={{ color: '#64748b' }}>{item.count}</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <div style={{ flex: 1, height: '20px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                      <div
-                        style={{
-                          width: `${(item.count / maxAgentCount) * 100}%`,
-                          height: '100%',
-                          background: chartColors[idx % chartColors.length],
-                          borderRadius: '4px',
-                          transition: 'width 0.3s ease',
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No agent data for {selectedMonth}</p>
-      )}
-    </div>
-
-    <div ref={cityStatsRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
-      <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Shipments by City</h3>
-      {citySummary.length > 0 ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          <div>
-            <table style={{ width: '100%', fontSize: '12px' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <th style={{ textAlign: 'left', padding: '4px', fontWeight: '600' }}>City</th>
-                  <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Shipments</th>
-                  <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Total Cost</th>
-                </tr>
-              </thead>
-              <tbody>
-                {citySummary.map((item, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
-                    <td style={{ padding: '4px' }}>{item.city}</td>
-                    <td style={{ textAlign: 'right', padding: '4px' }}>{item.count}</td>
-                    <td style={{ textAlign: 'right', padding: '4px' }}>
-                      ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div>
-            <h4 style={{ fontSize: '12px', fontWeight: '600', marginBottom: '12px', color: '#475569' }}>Shipment Count by City</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {citySummary.map((item, idx) => (
-                <div key={idx}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', fontSize: '10px' }}>
-                    <span style={{ fontWeight: '600', color: '#475569' }}>{item.city}</span>
-                    <span style={{ color: '#64748b' }}>{item.count}</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <div style={{ flex: 1, height: '20px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                      <div
-                        style={{
-                          width: `${(item.count / maxCityCount) * 100}%`,
-                          height: '100%',
-                          background: chartColors[idx % chartColors.length],
-                          borderRadius: '4px',
-                          transition: 'width 0.3s ease',
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No city data for {selectedMonth}</p>
-      )}
-    </div>
-
-    <div ref={stateStatsRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
-      <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Shipments by State</h3>
-      {stateSummary.length > 0 ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          <div>
-            <table style={{ width: '100%', fontSize: '12px' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <th style={{ textAlign: 'left', padding: '4px', fontWeight: '600' }}>State</th>
-                  <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Shipments</th>
-                  <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Total Cost</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stateSummary.map((item, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
-                    <td style={{ padding: '4px' }}>{item.state}</td>
-                    <td style={{ textAlign: 'right', padding: '4px' }}>{item.count}</td>
-                    <td style={{ textAlign: 'right', padding: '4px' }}>
-                      ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div>
-            <h4 style={{ fontSize: '12px', fontWeight: '600', marginBottom: '12px', color: '#475569' }}>Shipment Count by State</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {stateSummary.map((item, idx) => (
-                <div key={idx}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', fontSize: '10px' }}>
-                    <span style={{ fontWeight: '600', color: '#475569' }}>{item.state}</span>
-                    <span style={{ color: '#64748b' }}>{item.count}</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <div style={{ flex: 1, height: '20px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                      <div
-                        style={{
-                          width: `${(item.count / maxStateCount) * 100}%`,
-                          height: '100%',
-                          background: chartColors[idx % chartColors.length],
-                          borderRadius: '4px',
-                          transition: 'width 0.3s ease',
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No state data for {selectedMonth}</p>
-      )}
-    </div>
-  </>
-)}
+  ) : (
+    <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No state data for {selectedMonth}</p>
+  )}
+</div>
 
 
         <div style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px' }}>
@@ -2051,6 +2094,7 @@ function App() {
 }
 
 export default App;
+
 
 
 
