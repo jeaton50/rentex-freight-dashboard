@@ -1633,7 +1633,7 @@ function App() {
             </button>
           </div>
 
-          <div style={{ overflowX: 'auto', maxHeight: '600px', overflowY: 'auto' }}>
+          <div style={{ overflowX: 'auto', height: 'calc(100vh - 400px)', overflowY: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead style={{ background: '#f1f5f9', position: 'sticky', top: 0, zIndex: 10 }}>
                 <tr>
