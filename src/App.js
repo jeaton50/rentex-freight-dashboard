@@ -1633,9 +1633,9 @@ function App() {
             </button>
           </div>
 
-          <div style={{ overflowX: 'auto' }}>
+          <div style={{ overflowX: 'auto', maxHeight: '600px', overflowY: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead style={{ background: '#f1f5f9' }}>
+              <thead style={{ background: '#f1f5f9', position: 'sticky', top: 0, zIndex: 10 }}>
                 <tr>
                   <th onClick={() => handleSort('refNum')} style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>
                     REFERENCE #{getSortIcon('refNum')}
@@ -2094,7 +2094,6 @@ function App() {
 }
 
 export default App;
-
 
 
 
