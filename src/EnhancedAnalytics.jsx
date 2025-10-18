@@ -4,7 +4,7 @@ import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
-  ComposedChart, Scatter, ScatterChart, ZAxis
+  ComposedChart
 } from 'recharts';
 
 // Stable palette outside component so hooks don't depend on it
