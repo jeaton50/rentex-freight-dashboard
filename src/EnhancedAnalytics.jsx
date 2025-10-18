@@ -3,7 +3,8 @@ import React, { useState, useMemo, useCallback } from 'react';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
+  Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
+  ComposedChart, Scatter, ScatterChart, ZAxis
 } from 'recharts';
 
 // Stable palette outside component so hooks don't depend on it
@@ -28,6 +29,8 @@ function EnhancedAnalytics({
   const [filterMaxRevenue, setFilterMaxRevenue] = useState(Infinity);
   const [quickFilter, setQuickFilter] = useState('all');
   const [chartType, setChartType] = useState('bar'); // 'bar', 'line', 'pie', 'area'
+  const [selectedIndividual, setSelectedIndividual] = useState('');
+  const [individualDimension, setIndividualDimension] = useState('company');
 
   // --- NEW: helpers for dates/months ---
  
@@ -330,7 +333,73 @@ function EnhancedAnalytics({
     return monthlySeries.filter(r => r.year === Number(yearForMonthly));
   }, [monthlySeries, yearForMonthly]);
 
+  // Cross-tabulation data for breakdown
+  const crossTabData = useMemo(() => {
+    const combinations = {};
+    shipments.forEach(s => {
+      const company = s.company || '(Unassigned)';
+      const state = s.state || '(No State)';
+      const agent = s.agent || '(No Agent)';
+      const key = `${company}|${state}|${agent}`;
+      
+      if (!combinations[key]) {
+        combinations[key] = { company, state, agent, revenue: 0, count: 0 };
+      }
+      combinations[key].revenue += Number(s.shippingCharge || 0);
+      combinations[key].count += 1;
+    });
+    
+    return Object.values(combinations).sort((a, b) => b.revenue - a.revenue);
+  }, [shipments]);
 
+  // Individual entity data
+  const individualData = useMemo(() => {
+    if (!selectedIndividual) return null;
+    
+    const entity = stats[individualDimension]?.find(item => item.name === selectedIndividual);
+    if (!entity) return null;
+
+    // Get monthly breakdown for this entity
+    const monthlyBreakdown = {};
+    entity.shipments.forEach(s => {
+      const d = parseShipDate(s);
+      if (!d) return;
+      const monthKey = `${d.getFullYear()}-${d.getMonth()}`;
+      if (!monthlyBreakdown[monthKey]) {
+        monthlyBreakdown[monthKey] = { 
+          month: MONTH_SHORT[d.getMonth()], 
+          year: d.getFullYear(),
+          revenue: 0, 
+          count: 0 
+        };
+      }
+      monthlyBreakdown[monthKey].revenue += Number(s.shippingCharge || 0);
+      monthlyBreakdown[monthKey].count += 1;
+    });
+
+    const monthlyData = Object.values(monthlyBreakdown).sort((a, b) => 
+      a.year - b.year || MONTH_SHORT.indexOf(a.month) - MONTH_SHORT.indexOf(b.month)
+    );
+
+    return {
+      ...entity,
+      monthlyData,
+      topClients: entity.shipments.reduce((acc, s) => {
+        const client = s.client || '(No Client)';
+        if (!acc[client]) acc[client] = { name: client, revenue: 0, count: 0 };
+        acc[client].revenue += Number(s.shippingCharge || 0);
+        acc[client].count += 1;
+        return acc;
+      }, {}),
+      topStates: entity.shipments.reduce((acc, s) => {
+        const state = s.state || '(No State)';
+        if (!acc[state]) acc[state] = { name: state, revenue: 0, count: 0 };
+        acc[state].revenue += Number(s.shippingCharge || 0);
+        acc[state].count += 1;
+        return acc;
+      }, {})
+    };
+  }, [selectedIndividual, individualDimension, stats]);
 
   // --- UI sub-renders ---
 
@@ -723,6 +792,415 @@ function EnhancedAnalytics({
     </div>
   );
 
+  // NEW: Breakdown tab render
+  const renderBreakdown = () => (
+    <div style={{ padding: '24px' }}>
+      <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '24px', color: '#1e293b' }}>
+        Cross-Dimensional Breakdown
+      </h2>
+      
+      {/* Company x State breakdown chart */}
+      <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>
+        <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' }}>
+          Revenue by Company & State (Top 20 combinations)
+        </h3>
+        <ResponsiveContainer width="100%" height={400}>
+          <BarChart data={crossTabData.slice(0, 20)} margin={{ top: 20, right: 30, left: 20, bottom: 100 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <XAxis 
+              dataKey={(entry) => `${entry.company} (${entry.state})`}
+              angle={-45} 
+              textAnchor="end" 
+              height={120} 
+              style={{ fontSize: '11px' }} 
+            />
+            <YAxis style={{ fontSize: '12px' }} tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+            <Tooltip 
+              content={({ active, payload }) => {
+                if (active && payload && payload.length) {
+                  const data = payload[0].payload;
+                  return (
+                    <div style={{
+                      background: 'white',
+                      border: '2px solid #3b82f6',
+                      borderRadius: '8px',
+                      padding: '12px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                    }}>
+                      <p style={{ fontWeight: 'bold', marginBottom: '8px', color: '#1e293b' }}>
+                        {data.company} • {data.state} • {data.agent}
+                      </p>
+                      <p style={{ color: '#3b82f6', fontSize: '13px', margin: '4px 0' }}>
+                        Revenue: ${Number(data.revenue).toLocaleString()}
+                      </p>
+                      <p style={{ color: '#10b981', fontSize: '13px', margin: '4px 0' }}>
+                        Shipments: {data.count}
+                      </p>
+                    </div>
+                  );
+                }
+                return null;
+              }}
+            />
+            <Bar dataKey="revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Cross-tab table */}
+      <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>
+        <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' }}>
+          Detailed Cross-Tabulation (Company × State × Agent)
+        </h3>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>
+                <th style={{ textAlign: 'left', padding: '12px', fontWeight: '600', color: '#64748b' }}>Company</th>
+                <th style={{ textAlign: 'left', padding: '12px', fontWeight: '600', color: '#64748b' }}>State</th>
+                <th style={{ textAlign: 'left', padding: '12px', fontWeight: '600', color: '#64748b' }}>Agent</th>
+                <th style={{ textAlign: 'right', padding: '12px', fontWeight: '600', color: '#64748b' }}>Revenue</th>
+                <th style={{ textAlign: 'right', padding: '12px', fontWeight: '600', color: '#64748b' }}>Shipments</th>
+                <th style={{ textAlign: 'right', padding: '12px', fontWeight: '600', color: '#64748b' }}>Avg Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {crossTabData.slice(0, 50).map((item, idx) => (
+                <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={{ padding: '10px', fontWeight: '600' }}>{item.company}</td>
+                  <td style={{ padding: '10px' }}>{item.state}</td>
+                  <td style={{ padding: '10px' }}>{item.agent}</td>
+                  <td style={{ padding: '10px', textAlign: 'right' }}>
+                    ${item.revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </td>
+                  <td style={{ padding: '10px', textAlign: 'right' }}>{item.count}</td>
+                  <td style={{ padding: '10px', textAlign: 'right' }}>
+                    ${(item.revenue / item.count).toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Matrix heatmap simulation */}
+      <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px' }}>
+        <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' }}>
+          Performance Matrix (Revenue Intensity)
+        </h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px' }}>
+          {stats.company?.slice(0, 8).map((company, idx) => (
+            <div key={company.name} style={{ 
+              padding: '16px', 
+              borderRadius: '8px',
+              background: `linear-gradient(135deg, ${COLORS[idx % COLORS.length]}20, ${COLORS[idx % COLORS.length]}40)`,
+              border: `1px solid ${COLORS[idx % COLORS.length]}60`
+            }}>
+              <h4 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '8px', color: '#1e293b' }}>
+                {company.name}
+              </h4>
+              <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>
+                Revenue: ${company.revenue.toLocaleString()}
+              </div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>
+                Shipments: {company.count}
+              </div>
+              <div style={{ fontSize: '12px', color: '#64748b' }}>
+                Avg: ${company.avgPerShipment.toFixed(2)}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  // NEW: Individual tab render
+  const renderIndividual = () => (
+    <div style={{ padding: '24px' }}>
+      <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '24px', color: '#1e293b' }}>
+        Individual Entity Analysis
+      </h2>
+
+      {/* Entity Selector */}
+      <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '16px', alignItems: 'end' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#475569', marginBottom: '8px' }}>
+              Dimension
+            </label>
+            <select
+              value={individualDimension}
+              onChange={(e) => {
+                setIndividualDimension(e.target.value);
+                setSelectedIndividual('');
+              }}
+              style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '14px' }}
+            >
+              {['company', 'agent', 'client', 'city', 'state'].map(dim => (
+                <option key={dim} value={dim}>
+                  {dim.charAt(0).toUpperCase() + dim.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#475569', marginBottom: '8px' }}>
+              Select Entity
+            </label>
+            <select
+              value={selectedIndividual}
+              onChange={(e) => setSelectedIndividual(e.target.value)}
+              style={{ width: '100%', padding: '10px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '14px' }}
+            >
+              <option value="">-- Select an entity --</option>
+              {(stats[individualDimension] || [])
+                .sort((a, b) => b.revenue - a.revenue)
+                .map(item => (
+                  <option key={item.name} value={item.name}>
+                    {item.name} (${item.revenue.toLocaleString()})
+                  </option>
+                ))
+              }
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {selectedIndividual && individualData && (
+        <>
+          {/* Overview Stats */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+            <MetricCard 
+              title="Total Revenue" 
+              value={`$${individualData.revenue.toLocaleString()}`}
+              subtitle={`${((individualData.revenue / totalRevenue) * 100).toFixed(1)}% of total`}
+            />
+            <MetricCard 
+              title="Total Shipments" 
+              value={individualData.count}
+              subtitle={`${((individualData.count / totalShipments) * 100).toFixed(1)}% of total`}
+            />
+            <MetricCard 
+              title="Avg per Shipment" 
+              value={`$${individualData.avgPerShipment.toFixed(2)}`}
+              subtitle={avgPerShipment > 0 ? `${((individualData.avgPerShipment / avgPerShipment) * 100).toFixed(0)}% of avg` : ''}
+            />
+            <MetricCard 
+              title="Monthly Activity" 
+              value={individualData.monthlyData.length}
+              subtitle="active months"
+            />
+          </div>
+
+          {/* Monthly Trend */}
+          <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' }}>
+              Monthly Performance - {selectedIndividual}
+            </h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <ComposedChart data={individualData.monthlyData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey={(entry) => `${entry.month} ${entry.year}`} style={{ fontSize: '12px' }} />
+                <YAxis yAxisId="left" style={{ fontSize: '12px' }} tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                <YAxis yAxisId="right" orientation="right" style={{ fontSize: '12px' }} />
+                <Tooltip />
+                <Legend />
+                <Bar yAxisId="left" dataKey="revenue" fill="#3b82f6" name="Revenue" radius={[4, 4, 0, 0]} />
+                <Line yAxisId="right" type="monotone" dataKey="count" stroke="#10b981" strokeWidth={3} name="Shipments" />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Breakdowns */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+            {/* Top Clients */}
+            <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' }}>
+                Top Clients
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {Object.values(individualData.topClients)
+                  .sort((a, b) => b.revenue - a.revenue)
+                  .slice(0, 8)
+                  .map((client, idx) => (
+                    <div key={client.name} style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center',
+                      padding: '8px 12px',
+                      background: '#f8fafc',
+                      borderRadius: '6px'
+                    }}>
+                      <div>
+                        <div style={{ fontWeight: '600', fontSize: '13px' }}>{client.name}</div>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>{client.count} shipments</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontWeight: 'bold', fontSize: '13px' }}>
+                          ${client.revenue.toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                }
+              </div>
+            </div>
+
+            {/* Top States */}
+            <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' }}>
+                Top States
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {Object.values(individualData.topStates)
+                  .sort((a, b) => b.revenue - a.revenue)
+                  .slice(0, 8)
+                  .map((state, idx) => (
+                    <div key={state.name} style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center',
+                      padding: '8px 12px',
+                      background: '#f8fafc',
+                      borderRadius: '6px'
+                    }}>
+                      <div>
+                        <div style={{ fontWeight: '600', fontSize: '13px' }}>{state.name}</div>
+                        <div style={{ fontSize: '11px', color: '#64748b' }}>{state.count} shipments</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontWeight: 'bold', fontSize: '13px' }}>
+                          ${state.revenue.toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                }
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {!selectedIndividual && (
+        <div style={{ 
+          background: 'white', 
+          border: '1px solid #e2e8f0', 
+          borderRadius: '12px', 
+          padding: '48px', 
+          textAlign: 'center' 
+        }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔍</div>
+          <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '8px', color: '#1e293b' }}>
+            Select an Entity to Analyze
+          </h3>
+          <p style={{ fontSize: '14px', color: '#64748b' }}>
+            Choose a dimension and entity above to see detailed individual performance metrics, trends, and breakdowns.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+
+  // NEW: Comparison tab render
+  const renderComparison = () => (
+    <div style={{ padding: '24px' }}>
+      <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '24px', color: '#1e293b' }}>
+        Entity Comparison
+      </h2>
+
+      {/* Selection Pills */}
+      <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>
+        <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' }}>
+          Select Entities to Compare ({selectedEntities.length} selected)
+        </h3>
+        {renderSelectionPills()}
+      </div>
+
+      {selectedEntities.length >= 2 ? (
+        <>
+          {/* Comparison Chart */}
+          <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' }}>
+              Revenue & Volume Comparison
+            </h3>
+            <ResponsiveContainer width="100%" height={400}>
+              <BarChart data={currentData.filter(item => selectedEntities.includes(item.name))}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} style={{ fontSize: '12px' }} />
+                <YAxis yAxisId="left" style={{ fontSize: '12px' }} tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
+                <YAxis yAxisId="right" orientation="right" style={{ fontSize: '12px' }} />
+                <Tooltip />
+                <Legend />
+                <Bar yAxisId="left" dataKey="revenue" fill="#3b82f6" name="Revenue" radius={[4, 4, 0, 0]} />
+                <Bar yAxisId="right" dataKey="count" fill="#10b981" name="Shipments" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Comparison Table */}
+          <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' }}>
+              Detailed Comparison
+            </h3>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #e2e8f0', background: '#f8fafc' }}>
+                    <th style={{ textAlign: 'left', padding: '12px', fontWeight: '600', color: '#64748b' }}>Entity</th>
+                    <th style={{ textAlign: 'right', padding: '12px', fontWeight: '600', color: '#64748b' }}>Revenue</th>
+                    <th style={{ textAlign: 'right', padding: '12px', fontWeight: '600', color: '#64748b' }}>Shipments</th>
+                    <th style={{ textAlign: 'right', padding: '12px', fontWeight: '600', color: '#64748b' }}>Avg Value</th>
+                    <th style={{ textAlign: 'right', padding: '12px', fontWeight: '600', color: '#64748b' }}>Market Share</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentData
+                    .filter(item => selectedEntities.includes(item.name))
+                    .sort((a, b) => b.revenue - a.revenue)
+                    .map((item, idx) => (
+                      <tr key={item.name} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '12px', fontWeight: '600' }}>{item.name}</td>
+                        <td style={{ padding: '12px', textAlign: 'right' }}>
+                          ${item.revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td style={{ padding: '12px', textAlign: 'right' }}>{item.count}</td>
+                        <td style={{ padding: '12px', textAlign: 'right' }}>
+                          ${item.avgPerShipment.toFixed(2)}
+                        </td>
+                        <td style={{ padding: '12px', textAlign: 'right' }}>
+                          {totalRevenue > 0 ? ((item.revenue / totalRevenue) * 100).toFixed(1) : 0}%
+                        </td>
+                      </tr>
+                    ))
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      ) : (
+        <div style={{ 
+          background: 'white', 
+          border: '1px solid #e2e8f0', 
+          borderRadius: '12px', 
+          padding: '48px', 
+          textAlign: 'center' 
+        }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚖️</div>
+          <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '8px', color: '#1e293b' }}>
+            Select 2+ Entities to Compare
+          </h3>
+          <p style={{ fontSize: '14px', color: '#64748b' }}>
+            Click on the entity pills above to select multiple entities for side-by-side comparison.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+
   // --- NEW: Monthly tab render ---
   const renderMonthly = () => (
     <div style={{ padding: '24px' }}>
@@ -868,12 +1346,15 @@ function EnhancedAnalytics({
       </div>
 
       <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-        {selectedTab === 'overview'   && renderOverview()}
-        {selectedTab === 'charts'     && renderChartsTab()}
-        {selectedTab === 'insights'   && renderInsights()}
-        {selectedTab === 'rankings'   && renderRankings()}
-        {selectedTab === 'geographic' && renderGeographic()}
-        {selectedTab === 'monthly'    && renderMonthly()}
+        {selectedTab === 'overview'    && renderOverview()}
+        {selectedTab === 'charts'      && renderChartsTab()}
+        {selectedTab === 'insights'    && renderInsights()}
+        {selectedTab === 'rankings'    && renderRankings()}
+        {selectedTab === 'comparison'  && renderComparison()}
+        {selectedTab === 'breakdown'   && renderBreakdown()}
+        {selectedTab === 'individual'  && renderIndividual()}
+        {selectedTab === 'geographic'  && renderGeographic()}
+        {selectedTab === 'monthly'     && renderMonthly()}
       </div>
     </div>
   );
@@ -887,7 +1368,7 @@ function MetricCard({ title, value, trend, trendUp, subtitle }) {
       <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}>{value}</div>
       {trend && (
         <div style={{ fontSize: '12px', color: trendUp ? '#10b981' : '#ef4444', fontWeight: '600' }}>
-          {trendUp ? '↑' : '↓'} {trend}
+          {trendUp ? '↗' : '↘'} {trend}
         </div>
       )}
       {subtitle && <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>{subtitle}</div>}
