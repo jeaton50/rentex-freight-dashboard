@@ -38,12 +38,6 @@ function EnhancedAnalytics({
   const mainChartRef = useRef(null);
   const dualMetricChartRef = useRef(null);
   const radarChartRef = useRef(null);
-  const monthlyRevenueChartRef = useRef(null);
-  const monthlyShipmentsChartRef = useRef(null);
-  const geographicChartRef = useRef(null);
-  const breakdownChartRef = useRef(null);
-  const comparisonChartRef = useRef(null);
-  const individualChartRef = useRef(null);
 
   // Export Functions
   const exportChart = async (chartRef, filename, format = 'png') => {
