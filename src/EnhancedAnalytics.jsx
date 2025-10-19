@@ -1,11 +1,12 @@
 // EnhancedAnalytics.jsx - With Beautiful Interactive Recharts (with Monthly tab)
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
   ComposedChart
 } from 'recharts';
+import { toPng, toSvg } from 'html-to-image';
 
 // Stable palette outside component so hooks don't depend on it
 const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#6366f1', '#f97316', '#14b8a6', '#f43f5e'];
@@ -31,6 +32,113 @@ function EnhancedAnalytics({
   const [chartType, setChartType] = useState('bar'); // 'bar', 'line', 'pie', 'area'
   const [selectedIndividual, setSelectedIndividual] = useState('');
   const [individualDimension, setIndividualDimension] = useState('company');
+
+  // Refs for chart export
+  const overviewChartRef = useRef(null);
+  const mainChartRef = useRef(null);
+  const dualMetricChartRef = useRef(null);
+  const radarChartRef = useRef(null);
+  const monthlyRevenueChartRef = useRef(null);
+  const monthlyShipmentsChartRef = useRef(null);
+  const geographicChartRef = useRef(null);
+  const breakdownChartRef = useRef(null);
+  const comparisonChartRef = useRef(null);
+  const individualChartRef = useRef(null);
+
+  // Export Functions
+  const exportChart = async (chartRef, filename, format = 'png') => {
+    if (!chartRef.current) return;
+    
+    try {
+      const dataUrl = format === 'svg' 
+        ? await toSvg(chartRef.current, { backgroundColor: 'white' })
+        : await toPng(chartRef.current, { backgroundColor: 'white', pixelRatio: 2 });
+      
+      const link = document.createElement('a');
+      link.download = `${filename}.${format}`;
+      link.href = dataUrl;
+      link.click();
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Export failed. Please try again.');
+    }
+  };
+
+  const exportToCSV = (data, filename) => {
+    if (!data || data.length === 0) return;
+    
+    const headers = Object.keys(data[0]);
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => headers.map(header => {
+        const value = row[header];
+        return typeof value === 'string' && value.includes(',') ? `"${value}"` : value;
+      }).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${filename}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('Copied to clipboard!');
+    } catch (error) {
+      console.error('Copy failed:', error);
+      alert('Copy failed. Please try again.');
+    }
+  };
+
+  const generateSummaryReport = () => {
+    const report = `
+FREIGHT ANALYTICS SUMMARY REPORT
+Generated: ${new Date().toLocaleDateString()}
+Period: ${selectedMonth} ${selectedYear}
+
+KEY METRICS:
+- Total Revenue: ${totalRevenue.toLocaleString()}
+- Total Shipments: ${totalShipments}
+- Average per Shipment: ${avgPerShipment.toFixed(2)}
+- Active ${selectedDimension}s: ${currentData.length}
+
+TOP PERFORMERS (by Revenue):
+${rankedByRevenue.slice(0, 10).map((item, idx) => 
+  `${idx + 1}. ${item.name}: ${item.revenue.toLocaleString()} (${item.count} shipments)`
+).join('\n')}
+
+INSIGHTS:
+${insights.map(insight => `- ${insight.title}: ${insight.message}`).join('\n')}
+    `.trim();
+    
+    return report;
+  };
+
+  const ExportButton = ({ onClick, children, variant = 'secondary' }) => (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '6px 12px',
+        background: variant === 'primary' ? '#3b82f6' : 'white',
+        color: variant === 'primary' ? 'white' : '#475569',
+        border: '1px solid #cbd5e1',
+        borderRadius: '6px',
+        fontSize: '12px',
+        fontWeight: '600',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px'
+      }}
+    >
+      {children}
+    </button>
+  );
 
   // --- NEW: helpers for dates/months ---
  
@@ -482,115 +590,151 @@ function EnhancedAnalytics({
         {renderSelectionPills()}
 
         {/* Main Chart */}
-        {chartType === 'bar' && (
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} style={{ fontSize: '12px' }} />
-              <YAxis style={{ fontSize: '12px' }} tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend wrapperStyle={{ paddingTop: '20px' }} />
-              <Bar dataKey="revenue" name="Revenue" radius={[8, 8, 0, 0]} animationDuration={1000}>
-                {chartData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} />))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        )}
+        <div ref={mainChartRef}>
+          {chartType === 'bar' && (
+            <ResponsiveContainer width="100%" height={400}>
+              <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} style={{ fontSize: '12px' }} />
+                <YAxis style={{ fontSize: '12px' }} tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                <Bar dataKey="revenue" name="Revenue" radius={[8, 8, 0, 0]} animationDuration={1000}>
+                  {chartData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.fill} />))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
 
-        {chartType === 'line' && (
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} style={{ fontSize: '12px' }} />
-              <YAxis style={{ fontSize: '12px' }} tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend wrapperStyle={{ paddingTop: '20px' }} />
-              <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={3} dot={{ fill: '#3b82f6', r: 6 }} activeDot={{ r: 8 }} name="Revenue" animationDuration={1500} />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
+          {chartType === 'line' && (
+            <ResponsiveContainer width="100%" height={400}>
+              <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} style={{ fontSize: '12px' }} />
+                <YAxis style={{ fontSize: '12px' }} tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={3} dot={{ fill: '#3b82f6', r: 6 }} activeDot={{ r: 8 }} name="Revenue" animationDuration={1500} />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
 
-        {chartType === 'pie' && (
-          <ResponsiveContainer width="100%" height={400}>
-            <PieChart>
-              <Pie
-                data={pieChartData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={renderCustomizedLabel}
-                outerRadius={140}
-                fill="#8884d8"
-                dataKey="value"
-                animationBegin={0}
-                animationDuration={800}
-              >
-                {pieChartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip content={<CustomTooltip />} />
-              <Legend verticalAlign="bottom" height={36} formatter={(value, entry) => `${value} (${entry.payload.percentage}%)`} />
-            </PieChart>
-          </ResponsiveContainer>
-        )}
+          {chartType === 'pie' && (
+            <ResponsiveContainer width="100%" height={400}>
+              <PieChart>
+                <Pie
+                  data={pieChartData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={renderCustomizedLabel}
+                  outerRadius={140}
+                  fill="#8884d8"
+                  dataKey="value"
+                  animationBegin={0}
+                  animationDuration={800}
+                >
+                  {pieChartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip content={<CustomTooltip />} />
+                <Legend verticalAlign="bottom" height={36} formatter={(value, entry) => `${value} (${entry.payload.percentage}%)`} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
 
-        {chartType === 'area' && (
-          <ResponsiveContainer width="100%" height={400}>
-            <AreaChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-              <defs>
-                <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-              <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} style={{ fontSize: '12px' }} />
-              <YAxis style={{ fontSize: '12px' }} tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-              <Tooltip content={<CustomTooltip />} />
-              <Legend wrapperStyle={{ paddingTop: '20px' }} />
-              <Area type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" name="Revenue" animationDuration={1500} />
-            </AreaChart>
-          </ResponsiveContainer>
-        )}
+          {chartType === 'area' && (
+            <ResponsiveContainer width="100%" height={400}>
+              <AreaChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                <defs>
+                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} style={{ fontSize: '12px' }} />
+                <YAxis style={{ fontSize: '12px' }} tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                <Area type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#colorRevenue)" name="Revenue" animationDuration={1500} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* Export buttons for main chart */}
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '16px' }}>
+          <ExportButton onClick={() => exportChart(mainChartRef, `${selectedDimension}-${chartType}-chart`, 'png')}>
+            📸 Export as PNG
+          </ExportButton>
+          <ExportButton onClick={() => exportChart(mainChartRef, `${selectedDimension}-${chartType}-chart`, 'svg')}>
+            🎨 Export as SVG
+          </ExportButton>
+        </div>
       </div>
 
       {/* Dual Metric Chart */}
       <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>
-        <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '24px', color: '#1e293b' }}>
-          Revenue vs Volume Analysis
-        </h3>
-        <ResponsiveContainer width="100%" height={350}>
-          <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} style={{ fontSize: '12px' }} />
-            <YAxis yAxisId="left"  style={{ fontSize: '12px' }} tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-            <YAxis yAxisId="right" orientation="right" style={{ fontSize: '12px' }} />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend wrapperStyle={{ paddingTop: '20px' }} />
-            <Bar yAxisId="left"  dataKey="revenue"   fill="#3b82f6" name="Revenue"   radius={[8, 8, 0, 0]} />
-            <Bar yAxisId="right" dataKey="shipments" fill="#10b981" name="Shipments" radius={[8, 8, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b' }}>
+            Revenue vs Volume Analysis
+          </h3>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <ExportButton onClick={() => exportChart(dualMetricChartRef, 'dual-metric-chart', 'png')}>
+              🖼️ PNG
+            </ExportButton>
+            <ExportButton onClick={() => exportChart(dualMetricChartRef, 'dual-metric-chart', 'svg')}>
+              🎨 SVG
+            </ExportButton>
+          </div>
+        </div>
+        <div ref={dualMetricChartRef}>
+          <ResponsiveContainer width="100%" height={350}>
+            <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} style={{ fontSize: '12px' }} />
+              <YAxis yAxisId="left"  style={{ fontSize: '12px' }} tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`} />
+              <YAxis yAxisId="right" orientation="right" style={{ fontSize: '12px' }} />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend wrapperStyle={{ paddingTop: '20px' }} />
+              <Bar yAxisId="left"  dataKey="revenue"   fill="#3b82f6" name="Revenue"   radius={[8, 8, 0, 0]} />
+              <Bar yAxisId="right" dataKey="shipments" fill="#10b981" name="Shipments" radius={[8, 8, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       {/* Performance Radar */}
       <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px' }}>
-        <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '24px', color: '#1e293b' }}>
-          Performance Radar - Top 5 Entities
-        </h3>
-        <ResponsiveContainer width="100%" height={400}>
-          <RadarChart data={radarData}>
-            <PolarGrid stroke="#cbd5e1" />
-            <PolarAngleAxis dataKey="entity" style={{ fontSize: '12px' }} />
-            <PolarRadiusAxis angle={90} domain={[0, 100]} style={{ fontSize: '11px' }} />
-            <Radar name="Revenue Score"  dataKey="revenue"  stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} animationDuration={1000} />
-            <Radar name="Volume Score"   dataKey="volume"   stroke="#10b981" fill="#10b981" fillOpacity={0.3} animationDuration={1000} />
-            <Radar name="Avg Value Score"dataKey="avgValue" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.3} animationDuration={1000} />
-            <Legend />
-            <Tooltip />
-          </RadarChart>
-        </ResponsiveContainer>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b' }}>
+            Performance Radar - Top 5 Entities
+          </h3>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <ExportButton onClick={() => exportChart(radarChartRef, 'performance-radar', 'png')}>
+              🖼️ PNG
+            </ExportButton>
+            <ExportButton onClick={() => exportChart(radarChartRef, 'performance-radar', 'svg')}>
+              🎨 SVG
+            </ExportButton>
+          </div>
+        </div>
+        <div ref={radarChartRef}>
+          <ResponsiveContainer width="100%" height={400}>
+            <RadarChart data={radarData}>
+              <PolarGrid stroke="#cbd5e1" />
+              <PolarAngleAxis dataKey="entity" style={{ fontSize: '12px' }} />
+              <PolarRadiusAxis angle={90} domain={[0, 100]} style={{ fontSize: '11px' }} />
+              <Radar name="Revenue Score"  dataKey="revenue"  stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} animationDuration={1000} />
+              <Radar name="Volume Score"   dataKey="volume"   stroke="#10b981" fill="#10b981" fillOpacity={0.3} animationDuration={1000} />
+              <Radar name="Avg Value Score"dataKey="avgValue" stroke="#f59e0b" fill="#f59e0b" fillOpacity={0.3} animationDuration={1000} />
+              <Legend />
+              <Tooltip />
+            </RadarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     </div>
   );
@@ -613,20 +757,32 @@ function EnhancedAnalytics({
 
       {/* Quick Chart Preview */}
       <div style={{ background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>
-        <h3 style={{ fontSize: '16px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' }}>Revenue Overview</h3>
-        <ResponsiveContainer width="100%" height={250}>
-          <BarChart data={chartData.slice(0, 5)}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis dataKey="name" style={{ fontSize: '11px' }} />
-            <YAxis style={{ fontSize: '11px' }} tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
-            <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey="revenue" radius={[8, 8, 0, 0]}>
-              {chartData.slice(0, 5).map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.fill} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 'bold', color: '#1e293b' }}>Revenue Overview</h3>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <ExportButton onClick={() => exportChart(overviewChartRef, 'overview-chart', 'png')}>
+              🖼️ PNG
+            </ExportButton>
+            <ExportButton onClick={() => exportChart(overviewChartRef, 'overview-chart', 'svg')}>
+              🎨 SVG
+            </ExportButton>
+          </div>
+        </div>
+        <div ref={overviewChartRef}>
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={chartData.slice(0, 5)}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+              <XAxis dataKey="name" style={{ fontSize: '11px' }} />
+              <YAxis style={{ fontSize: '11px' }} tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`} />
+              <Tooltip content={<CustomTooltip />} />
+              <Bar dataKey="revenue" radius={[8, 8, 0, 0]}>
+                {chartData.slice(0, 5).map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.fill} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       {/* Filters */}
@@ -1312,12 +1468,33 @@ function EnhancedAnalytics({
               {selectedMonth ? `${MONTH_SHORT[Number(selectedMonth)-1]} ` : ''}{selectedYear || ''}{selectedMonth || selectedYear ? ' • ' : ''}{totalShipments} shipments • ${totalRevenue.toLocaleString()} revenue
             </p>
           </div>
-          <button
-            onClick={onBack}
-            style={{ padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
-          >
-            ← Back to Dashboard
-          </button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {/* Export Controls */}
+            <ExportButton 
+              onClick={() => copyToClipboard(generateSummaryReport())}
+              variant="secondary"
+            >
+              📋 Copy Summary
+            </ExportButton>
+            <ExportButton 
+              onClick={() => exportToCSV(rankedByRevenue.map(item => ({
+                name: item.name,
+                revenue: item.revenue,
+                shipments: item.count,
+                avgPerShipment: item.avgPerShipment,
+                marketShare: ((item.revenue / totalRevenue) * 100).toFixed(1) + '%'
+              })), `analytics-data-${selectedMonth}-${selectedYear}`)}
+              variant="secondary"
+            >
+              📊 Export Data
+            </ExportButton>
+            <button
+              onClick={onBack}
+              style={{ padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
+            >
+              ← Back to Dashboard
+            </button>
+          </div>
         </div>
       </div>
 
