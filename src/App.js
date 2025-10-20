@@ -1,13 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import ExcelJS from 'exceljs';
-import { toPng } from 'html-to-image';
 import { db } from './firebase';
 import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import PasswordLogin from './PasswordLogin';
-import EnhancedAnalytics from './Analytics';
 import './App.css';
 
 // ============================================
@@ -155,7 +153,6 @@ function App() {
   const [dropdownRect, setDropdownRect] = useState(null);
   const [lastSaved, setLastSaved] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [showAnalytics, setShowAnalytics] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -163,10 +160,7 @@ function App() {
   const [statusEnabled, setStatusEnabled] = useState(true);
 
   const costPerCompanyRef = useRef(null);
-  const clientStatsRef = useRef(null);
   const agentStatsRef = useRef(null);
-  const shipmentCountRef = useRef(null);
-  const revenueDistRef = useRef(null);
   const cityStatsRef = useRef(null);
   const stateStatsRef = useRef(null);
 
@@ -274,15 +268,7 @@ function App() {
   // ==============================================================
   // Autosave to Firestore (only when not YTD)
   // ==============================================================
-  useEffect(() => {
-    if (!isAuthenticated || isYTD) return;
-    const timeoutId = setTimeout(() => {
-      saveToFirestore();
-    }, 1000);
-    return () => clearTimeout(timeoutId);
-  }, [shipments, companies, locations, agents, cities, states, clients]);
-
-  const saveToFirestore = async () => {
+  const saveToFirestore = useCallback(async () => {
     if (isYTD) return;
     setIsSaving(true);
     try {
@@ -302,7 +288,15 @@ function App() {
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [isYTD, selectedYear, selectedMonth, shipments, companies, locations, agents, cities, states, clients]);
+
+  useEffect(() => {
+    if (!isAuthenticated || isYTD) return;
+    const timeoutId = setTimeout(() => {
+      saveToFirestore();
+    }, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [isAuthenticated, isYTD, saveToFirestore]);
 
   // ==============================================================
   // CRUD Shipment Rows
@@ -469,7 +463,7 @@ function App() {
     }
   };
 
-  const commitEdit = () => {
+  const commitEdit = useCallback(() => {
     if (!editingCell) return;
     const { rowId, colKey } = editingCell;
     let finalValue = editValue;
@@ -502,7 +496,7 @@ function App() {
     setEditValue('');
     setShowDropdown(false);
     setFilteredOptions([]);
-  };
+  }, [editingCell, editValue, companies, agents, locations, cities, states, clients]);
 
   useEffect(() => {
     if (editingCell && inputRef.current) {
@@ -520,7 +514,7 @@ function App() {
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [editingCell, editValue]);
+  }, [editingCell, commitEdit]);
 
   // ==============================================================
   // BULK ADD
@@ -880,8 +874,9 @@ function App() {
     return sum + (isNaN(c) ? 0 : c);
   }, 0);
 
-  const openAnalytics = () => setShowAnalytics(true);
-  const closeAnalytics = () => setShowAnalytics(false);
+  const openAnalytics = () => {
+    alert('Analytics feature coming soon!');
+  };
 
   const copyMonthTarget = async () => {
     if (isYTD) return;
@@ -970,53 +965,6 @@ function App() {
   const maxAgentCount = Math.max(...agentSummary.map((i) => i.count), 1);
   const maxCityCount = Math.max(...citySummary.map((i) => i.count), 1);
   const maxStateCount = Math.max(...stateSummary.map((i) => i.count), 1);
-
-  const exportSummaryPng = async () => {
-    const container = document.createElement('div');
-    container.style.background = 'white';
-    container.style.padding = '20px';
-    container.style.width = '1200px';
-
-    const header = document.createElement('div');
-    header.innerHTML = `<h2 style="margin:0 0 16px 0;">Analytics Summary - ${selectedMonth} ${selectedYear}</h2>`;
-    container.appendChild(header);
-
-    const clone = (ref, title) => {
-      const section = document.createElement('div');
-      section.style.marginBottom = '20px';
-      const h = document.createElement('h3');
-      h.textContent = title;
-      h.style.margin = '8px 0';
-      section.appendChild(h);
-      if (ref.current) {
-        const clonedNode = ref.current.cloneNode(true);
-        section.appendChild(clonedNode);
-      }
-      container.appendChild(section);
-    };
-
-    clone(costPerCompanyRef, 'Cost per Company');
-    clone(agentStatsRef, 'Agent Stats');
-    clone(cityStatsRef, 'City Stats');
-    clone(stateStatsRef, 'State Stats');
-
-    document.body.appendChild(container);
-    container.style.position = 'absolute';
-    container.style.top = '-9999px';
-
-    try {
-      const dataUrl = await toPng(container, { quality: 0.95, pixelRatio: 2 });
-      const link = document.createElement('a');
-      link.href = dataUrl;
-      link.download = `${selectedMonth}_${selectedYear}_Analytics.png`;
-      link.click();
-    } catch (err) {
-      console.error('Export PNG error:', err);
-      alert('Failed to export PNG.');
-    } finally {
-      document.body.removeChild(container);
-    }
-  };
 
   // ==============================================================
   // RENDER
