@@ -154,6 +154,8 @@ function App() {
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef(null);
+  const jsonFileInputRef = useRef(null);
+  const jsonClientsInputRef = useRef(null);
 
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [statusEnabled, setStatusEnabled] = useState(true);
@@ -692,6 +694,150 @@ function App() {
       alert(`Failed to add ${type}s. Check your permissions/rules.`);
     }
   };
+
+  const handleImportCitiesJSON = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // Reset input
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+
+      // Support different JSON formats
+      let cityList = [];
+      
+      if (Array.isArray(data)) {
+        // Format 1: Simple array ["City1", "City2", ...]
+        cityList = data.filter(item => typeof item === 'string' && item.trim());
+      } else if (data.cities && Array.isArray(data.cities)) {
+        // Format 2: Object with cities array { cities: ["City1", "City2", ...] }
+        cityList = data.cities.filter(item => typeof item === 'string' && item.trim());
+      } else if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object') {
+        // Format 3: Array of objects [{ name: "City1", state: "CA" }, ...]
+        cityList = data
+          .filter(item => item.name)
+          .map(item => item.name.trim());
+      }
+
+      if (cityList.length === 0) {
+        alert('No valid cities found in JSON file.\\n\\nSupported formats:\\n1. ["City1", "City2"]\\n2. { "cities": ["City1", "City2"] }\\n3. [{ "name": "City1" }, { "name": "City2" }]');
+        return;
+      }
+
+      // Remove duplicates and merge with existing
+      const existingLower = cities.map(c => c.toLowerCase());
+      const newCities = cityList.filter(
+        city => !existingLower.includes(city.toLowerCase())
+      );
+
+      if (newCities.length === 0) {
+        alert(`All ${cityList.length} cities from the file already exist!`);
+        return;
+      }
+
+      const confirm = window.confirm(
+        `Found ${cityList.length} cities in file.\\n${newCities.length} are new.\\n\\nMerge with existing cities?`
+      );
+
+      if (!confirm) return;
+
+      const updatedCities = [...cities, ...newCities].sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: 'base' })
+      );
+
+      // Save to Firebase
+      const cfgRef = doc(db, 'freight-config', 'global');
+      await setDoc(cfgRef, {
+        cities: updatedCities,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      alert(`✅ Successfully imported ${newCities.length} new cities!\\n\\nTotal cities: ${updatedCities.length}`);
+
+    } catch (error) {
+      console.error('JSON import failed:', error);
+      if (error instanceof SyntaxError) {
+        alert('❌ Invalid JSON file. Please check the file format.');
+      } else {
+        alert(`❌ Import failed: ${error.message}`);
+      }
+    }
+  };
+
+  const onClickImportCitiesJSON = () => jsonFileInputRef.current?.click();
+
+  const handleImportClientsJSON = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // Reset input
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+
+      // Support different JSON formats
+      let clientList = [];
+      
+      if (Array.isArray(data)) {
+        // Format 1: Simple array ["Client1", "Client2", ...]
+        clientList = data.filter(item => typeof item === 'string' && item.trim());
+      } else if (data.clients && Array.isArray(data.clients)) {
+        // Format 2: Object with clients array { clients: ["Client1", "Client2", ...] }
+        clientList = data.clients.filter(item => typeof item === 'string' && item.trim());
+      } else if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object') {
+        // Format 3: Array of objects [{ name: "Client1", contact: "..." }, ...]
+        clientList = data
+          .filter(item => item.name)
+          .map(item => item.name.trim());
+      }
+
+      if (clientList.length === 0) {
+        alert('No valid clients found in JSON file.\\n\\nSupported formats:\\n1. ["Client1", "Client2"]\\n2. { "clients": ["Client1", "Client2"] }\\n3. [{ "name": "Client1" }, { "name": "Client2" }]');
+        return;
+      }
+
+      // Remove duplicates and merge with existing
+      const existingLower = clients.map(c => c.toLowerCase());
+      const newClients = clientList.filter(
+        client => !existingLower.includes(client.toLowerCase())
+      );
+
+      if (newClients.length === 0) {
+        alert(`All ${clientList.length} clients from the file already exist!`);
+        return;
+      }
+
+      const confirm = window.confirm(
+        `Found ${clientList.length} clients in file.\\n${newClients.length} are new.\\n\\nMerge with existing clients?`
+      );
+
+      if (!confirm) return;
+
+      const updatedClients = [...clients, ...newClients].sort((a, b) =>
+        a.localeCompare(b, undefined, { sensitivity: 'base' })
+      );
+
+      // Save to Firebase
+      const cfgRef = doc(db, 'freight-config', 'global');
+      await setDoc(cfgRef, {
+        clients: updatedClients,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      alert(`✅ Successfully imported ${newClients.length} new clients!\\n\\nTotal clients: ${updatedClients.length}`);
+
+    } catch (error) {
+      console.error('JSON import failed:', error);
+      if (error instanceof SyntaxError) {
+        alert('❌ Invalid JSON file. Please check the file format.');
+      } else {
+        alert(`❌ Import failed: ${error.message}`);
+      }
+    }
+  };
+
+  const onClickImportClientsJSON = () => jsonClientsInputRef.current?.click();
 
   const excelColumns = [
     { header: 'Reference #', key: 'refNum' },
@@ -1574,12 +1720,20 @@ function App() {
               + Add City
             </button>
 
+            <button onClick={onClickImportCitiesJSON} style={{ padding: '8px 12px', background: '#9333ea', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Import cities from JSON file">
+              📁 Import Cities (JSON)
+            </button>
+
             <button onClick={() => setBulkAddModal({ open: true, type: 'state', items: '' })} style={{ padding: '8px 12px', background: '#6b7280', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add states (2-letter codes, one per line)">
               + Add State
             </button>
 
             <button onClick={() => setBulkAddModal({ open: true, type: 'client', items: '' })} style={{ padding: '8px 12px', background: '#db2777', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add clients (one per line)">
               + Add Client
+            </button>
+
+            <button onClick={onClickImportClientsJSON} style={{ padding: '8px 12px', background: '#ec4899', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Import clients from JSON file">
+              📁 Import Clients (JSON)
             </button>
 
             <button onClick={exportMonthExcel} style={{ padding: '8px 12px', background: '#166534', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
@@ -1591,6 +1745,10 @@ function App() {
             </button>
 
             <input ref={fileInputRef} type="file" accept=".xlsx" onChange={onImportFileChange} style={{ display: 'none' }} />
+            
+            <input ref={jsonFileInputRef} type="file" accept=".json" onChange={handleImportCitiesJSON} style={{ display: 'none' }} />
+            
+            <input ref={jsonClientsInputRef} type="file" accept=".json" onChange={handleImportClientsJSON} style={{ display: 'none' }} />
             
             <button onClick={onClickImport} disabled={isImporting} style={{ padding: '8px 12px', background: isImporting ? '#9ca3af' : '#312e81', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: isImporting ? 'not-allowed' : 'pointer' }}>
               {isImporting ? '⏳ Importing…' : '⬆️ Import All (Excel)'}
