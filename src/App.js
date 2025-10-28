@@ -141,6 +141,7 @@ function App() {
   const [states, setStates] = useState(DEFAULT_STATES);
   const [clients, setClients] = useState([]);
   const [bulkAddModal, setBulkAddModal] = useState({ open: false, type: '', items: '' });
+  const [singleAddModal, setSingleAddModal] = useState({ open: false, type: '', value: '' });
   const [shipments, setShipments] = useState([]);
 
   const [editingCell, setEditingCell] = useState(null);
@@ -153,6 +154,7 @@ function App() {
   const [isSaving, setIsSaving] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [showBulkOptions, setShowBulkOptions] = useState(false);
   const fileInputRef = useRef(null);
   const jsonFileInputRef = useRef(null);
   const jsonClientsInputRef = useRef(null);
@@ -1509,6 +1511,197 @@ function App() {
     );
   };
 
+  const handleSingleAdd = async () => {
+    const value = singleAddModal.value.trim();
+    
+    if (!value) {
+      alert('Please enter a value');
+      return;
+    }
+
+    const type = singleAddModal.type;
+    let currentList, fieldName, processor;
+
+    switch (type) {
+      case 'company':
+        currentList = companies;
+        fieldName = 'companies';
+        processor = (val) => val.toUpperCase();
+        break;
+      case 'location':
+        currentList = locations;
+        fieldName = 'locations';
+        processor = (val) => val;
+        break;
+      case 'agent':
+        currentList = agents;
+        fieldName = 'agents';
+        processor = (val) => {
+          let candidate = val.toUpperCase();
+          if (!candidate.includes('.')) {
+            const parts = candidate.split(/\s+/).filter(Boolean);
+            if (parts.length >= 2) {
+              const firstInitial = parts[0][0];
+              const last = parts.slice(1).join('').replace(/[^A-Z]/g, '');
+              candidate = `${firstInitial}.${last}`;
+            }
+          }
+          return candidate;
+        };
+        break;
+      case 'city':
+        currentList = cities;
+        fieldName = 'cities';
+        processor = (val) => val;
+        break;
+      case 'state':
+        currentList = states;
+        fieldName = 'states';
+        processor = (val) => (val || '').toUpperCase().slice(0,2);
+        break;
+      case 'client':
+        currentList = clients;
+        fieldName = 'clients';
+        processor = (val) => val;
+        break;
+      default:
+        return;
+    }
+
+    const processed = processor(value);
+    const exists = currentList.some(item => 
+      String(item).toLowerCase() === String(processed).toLowerCase()
+    );
+    
+    if (exists) {
+      alert(`"${processed}" already exists!`);
+      return;
+    }
+
+    const updatedList = [...currentList, processed].sort((a, b) =>
+      String(a).localeCompare(String(b), undefined, { sensitivity: 'base' })
+    );
+
+    try {
+      const cfgRef = doc(db, 'freight-config', 'global');
+      await setDoc(cfgRef, { 
+        [fieldName]: updatedList, 
+        updatedAt: new Date().toISOString() 
+      }, { merge: true });
+      
+      setSingleAddModal({ open: false, type: '', value: '' });
+      alert(`✅ Added "${processed}" successfully!`);
+    } catch (e) {
+      console.error(`Failed to add ${type}:`, e);
+      alert(`Failed to add ${type}. Check your permissions/rules.`);
+    }
+  };
+
+  const SingleAddModal = () => {
+    if (!singleAddModal.open) return null;
+
+    return createPortal(
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          isolation: 'isolate',
+        }}
+        onClick={() => setSingleAddModal({ open: false, type: '', value: '' })}
+      >
+        <div 
+          style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '24px',
+            width: '90%',
+            maxWidth: '400px',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            isolation: 'isolate',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' }}>
+            Quick Add One {singleAddModal.type.charAt(0).toUpperCase() + singleAddModal.type.slice(1)}
+          </h3>
+
+          <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '12px' }}>
+            Enter the {singleAddModal.type} name:
+          </p>
+
+          <input
+            type="text"
+            dir="ltr"
+            value={singleAddModal.value}
+            onChange={(e) => setSingleAddModal({ ...singleAddModal, value: e.target.value })}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSingleAdd();
+              }
+            }}
+            placeholder={`Enter ${singleAddModal.type} name...`}
+            style={{
+              width: '100%',
+              padding: '12px',
+              border: '1px solid #cbd5e1',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontFamily: 'Arial, sans-serif',
+              marginBottom: '16px',
+              boxSizing: 'border-box',
+              direction: 'ltr',
+              textAlign: 'left',
+            }}
+            autoFocus
+          />
+                  
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => setSingleAddModal({ open: false, type: '', value: '' })}
+              style={{
+                padding: '8px 16px',
+                background: '#e2e8f0',
+                color: '#475569',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSingleAdd}
+              style={{
+                padding: '8px 16px',
+                background: '#10b981',
+                color: 'white',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+              }}
+            >
+              Add
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    );
+  };
+
   const BulkAddModal = () => {
     if (!bulkAddModal.open) return null;
 
@@ -1546,11 +1739,23 @@ function App() {
             Bulk Add {bulkAddModal.type.charAt(0).toUpperCase() + bulkAddModal.type.slice(1)}s
           </h3>
 
+          <div style={{ 
+            padding: '12px', 
+            background: '#fef3c7', 
+            borderRadius: '8px', 
+            marginBottom: '12px',
+            fontSize: '13px',
+            color: '#92400e'
+          }}>
+            <strong>⚠️ Typing Issue?</strong> If text appears backwards when typing, try <strong>copy/pasting</strong> your list instead, or use the "Quick Add One" button for single items.
+          </div>
+
           <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '12px' }}>
-            Enter one {bulkAddModal.type} per line. Duplicates will be automatically skipped.
+            Enter one {bulkAddModal.type} per line, or paste from Excel/Sheets. Duplicates will be skipped.
           </p>
 
           <textarea
+            dir="ltr"
             value={bulkAddModal.items}
             onChange={(e) => setBulkAddModal({ ...bulkAddModal, items: e.target.value })}
             placeholder="Type here..."
@@ -1566,6 +1771,9 @@ function App() {
               boxSizing: 'border-box',
               resize: 'vertical',
               lineHeight: 1.4,
+              direction: 'ltr',
+              textAlign: 'left',
+              unicodeBidi: 'embed',
             }}
             autoFocus
           />
@@ -1700,41 +1908,86 @@ function App() {
     Analytics
   </button>
 
-  <button onClick={() => setBulkAddModal({ open: true, type: 'company', items: '' })} style={{ padding: '8px 12px', background: '#0f766e', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add companies (one per line)">
-    + Add Company
+  <button onClick={() => setSingleAddModal({ open: true, type: 'company', value: '' })} style={{ padding: '8px 12px', background: '#14b8a6', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Quick add one company">
+    ⚡ Quick Add One Company
   </button>
 
-            <button onClick={() => setBulkAddModal({ open: true, type: 'company', items: '' })} style={{ padding: '8px 12px', background: '#0f766e', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add companies (one per line)">
-              + Add Company
+            <button onClick={() => setSingleAddModal({ open: true, type: 'location', value: '' })} style={{ padding: '8px 12px', background: '#0891b2', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Quick add one location">
+              ⚡ Quick Add One Location
             </button>
 
-            <button onClick={() => setBulkAddModal({ open: true, type: 'location', items: '' })} style={{ padding: '8px 12px', background: '#155e75', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add locations (one per line)">
-              + Add Location
+            <button onClick={() => setSingleAddModal({ open: true, type: 'agent', value: '' })} style={{ padding: '8px 12px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Quick add one agent">
+              ⚡ Quick Add One Agent
             </button>
 
-            <button onClick={() => setBulkAddModal({ open: true, type: 'agent', items: '' })} style={{ padding: '8px 12px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title='Add agents (e.g., "J.DOE" or "John Doe" per line)'>
-              + Add Agent
+            <button onClick={() => setSingleAddModal({ open: true, type: 'city', value: '' })} style={{ padding: '8px 12px', background: '#a855f7', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Quick add one city">
+              ⚡ Quick Add One City
             </button>
 
-            <button onClick={() => setBulkAddModal({ open: true, type: 'city', items: '' })} style={{ padding: '8px 12px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add cities (one per line)">
-              + Add City
+            <button onClick={() => setSingleAddModal({ open: true, type: 'state', value: '' })} style={{ padding: '8px 12px', background: '#9ca3af', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Quick add one state">
+              ⚡ Quick Add One State
             </button>
 
-            <button onClick={onClickImportCitiesJSON} style={{ padding: '8px 12px', background: '#9333ea', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Import cities from JSON file">
-              📁 Import Cities (JSON)
+            <button onClick={() => setSingleAddModal({ open: true, type: 'client', value: '' })} style={{ padding: '8px 12px', background: '#f472b6', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Quick add one client">
+              ⚡ Quick Add One Client
             </button>
 
-            <button onClick={() => setBulkAddModal({ open: true, type: 'state', items: '' })} style={{ padding: '8px 12px', background: '#6b7280', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add states (2-letter codes, one per line)">
-              + Add State
+            <button 
+              onClick={() => setShowBulkOptions(!showBulkOptions)} 
+              style={{ 
+                padding: '8px 16px', 
+                background: showBulkOptions ? '#059669' : '#6b7280', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '8px', 
+                fontSize: '13px', 
+                fontWeight: '600', 
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+              title={showBulkOptions ? 'Hide bulk options' : 'Show bulk options'}
+            >
+              <span>{showBulkOptions ? '📂' : '📁'}</span>
+              {showBulkOptions ? 'Hide Bulk Options' : 'Show Bulk Options'}
             </button>
 
-            <button onClick={() => setBulkAddModal({ open: true, type: 'client', items: '' })} style={{ padding: '8px 12px', background: '#db2777', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add clients (one per line)">
-              + Add Client
-            </button>
+            {showBulkOptions && (
+              <>
+                <button onClick={() => setBulkAddModal({ open: true, type: 'company', items: '' })} style={{ padding: '8px 12px', background: '#0f766e', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add companies (one per line or paste list)">
+                  📝 Bulk Add Companies
+                </button>
 
-            <button onClick={onClickImportClientsJSON} style={{ padding: '8px 12px', background: '#ec4899', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Import clients from JSON file">
-              📁 Import Clients (JSON)
-            </button>
+                <button onClick={() => setBulkAddModal({ open: true, type: 'location', items: '' })} style={{ padding: '8px 12px', background: '#155e75', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add locations (one per line or paste list)">
+                  📝 Bulk Add Locations
+                </button>
+
+                <button onClick={() => setBulkAddModal({ open: true, type: 'agent', items: '' })} style={{ padding: '8px 12px', background: '#1d4ed8', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title='Add agents (e.g., "J.DOE" or "John Doe" per line)'>
+                  📝 Bulk Add Agents
+                </button>
+
+                <button onClick={() => setBulkAddModal({ open: true, type: 'city', items: '' })} style={{ padding: '8px 12px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add cities (one per line or paste list)">
+                  📝 Bulk Add Cities
+                </button>
+
+                <button onClick={onClickImportCitiesJSON} style={{ padding: '8px 12px', background: '#9333ea', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Import cities from JSON file">
+                  📁 Import Cities (JSON)
+                </button>
+
+                <button onClick={() => setBulkAddModal({ open: true, type: 'state', items: '' })} style={{ padding: '8px 12px', background: '#6b7280', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add states (2-letter codes, one per line)">
+                  📝 Bulk Add States
+                </button>
+
+                <button onClick={() => setBulkAddModal({ open: true, type: 'client', items: '' })} style={{ padding: '8px 12px', background: '#db2777', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Add clients (one per line or paste list)">
+                  📝 Bulk Add Clients
+                </button>
+
+                <button onClick={onClickImportClientsJSON} style={{ padding: '8px 12px', background: '#ec4899', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }} title="Import clients from JSON file">
+                  📁 Import Clients (JSON)
+                </button>
+              </>
+            )}
 
             <button onClick={exportMonthExcel} style={{ padding: '8px 12px', background: '#166534', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
               ⬇️ Export {isYTD ? 'YTD' : 'Month'} (Excel)
@@ -2246,6 +2499,7 @@ function App() {
           </>
         )}
       </div>
+      <SingleAddModal />
       <BulkAddModal />
     </div>
   );
