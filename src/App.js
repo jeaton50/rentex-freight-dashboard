@@ -595,13 +595,15 @@ function App() {
   };
 
   const handleBulkAdd = async () => {
+    // Split by newlines and commas to create individual entries
+    // This preserves spaces within entry names (e.g., "Oncue Staging")
     const lines = bulkAddModal.items
-      .split('\\n')
+      .split(/[\n\r,]+/)
       .map(line => line.trim())
       .filter(line => line.length > 0);
 
     if (lines.length === 0) {
-      alert('Please enter at least one item (one per line)');
+      alert('Please enter at least one item (separate with commas or new lines)');
       return;
     }
 
@@ -1751,14 +1753,18 @@ function App() {
           </div>
 
           <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '12px' }}>
-            Enter one {bulkAddModal.type} per line, or paste from Excel/Sheets. Duplicates will be skipped.
+            <strong>Separate entries with commas or new lines.</strong> This allows multi-word names like "Oncue Staging" to stay together.
+            <br />
+            <span style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px', display: 'block' }}>
+              Example: "Mesquite, Garland, Richardson" or each on a new line
+            </span>
           </p>
 
           <textarea
             dir="ltr"
             value={bulkAddModal.items}
             onChange={(e) => setBulkAddModal({ ...bulkAddModal, items: e.target.value })}
-            placeholder="Type here..."
+            placeholder="Example:\nMesquite\nGarland\nRichardson\n\nor: Mesquite, Garland, Richardson"
             style={{
               width: '100%',
               height: '200px',
