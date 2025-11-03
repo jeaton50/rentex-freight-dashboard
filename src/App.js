@@ -150,13 +150,12 @@ function App() {
   const [filteredOptions, setFilteredOptions] = useState([]);
   const inputRef = useRef(null);
   const [dropdownRect, setDropdownRect] = useState(null);
-  const [lastSaved, setLastSaved] = useState(null);
-  const [isSaving, setIsSaving] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [showBulkOptions, setShowBulkOptions] = useState(false);
   const [showQuickAdds, setShowQuickAdds] = useState(false);
   const fileInputRef = useRef(null);
+  const monthFileInputRef = useRef(null); // NEW: For importing single month
   const jsonFileInputRef = useRef(null);
   const jsonClientsInputRef = useRef(null);
 
@@ -182,421 +181,334 @@ function App() {
         sessionStorage.removeItem('isAuthenticated');
       }
     });
-
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    document.title = `Freight Dashboard – ${selectedMonth} ${selectedYear}`;
-  }, [selectedMonth, selectedYear]);
-
-  useEffect(() => {
-    const cfgRef = doc(db, 'freight-config', 'global');
-
-    (async () => {
-      const snap = await getDoc(cfgRef);
-      if (!snap.exists()) {
-        await setDoc(cfgRef, {
-          companies: DEFAULT_COMPANIES,
-          locations: DEFAULT_LOCATIONS,
-          agents: DEFAULT_AGENTS,
-          cities: DEFAULT_CITIES,
-          states: DEFAULT_STATES,
-          clients: [],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
-      } else {
-        const data = snap.data() || {};
-        const payload = {};
-        if (!Array.isArray(data.companies)) payload.companies = DEFAULT_COMPANIES;
-        if (!Array.isArray(data.locations)) payload.locations = DEFAULT_LOCATIONS;
-        if (!Array.isArray(data.agents)) payload.agents = DEFAULT_AGENTS;
-        if (!Array.isArray(data.cities)) payload.cities = DEFAULT_CITIES;
-        if (!Array.isArray(data.states)) payload.states = DEFAULT_STATES;
-        if (!Array.isArray(data.clients)) payload.clients = [];
-        if (Object.keys(payload).length) {
-          payload.updatedAt = new Date().toISOString();
-          await setDoc(cfgRef, payload, { merge: true });
-        }
-      }
-    })();
-
-    const unsub = onSnapshot(cfgRef, (d) => {
-      if (d.exists()) {
-        const data = d.data() || {};
-        setCompanies(Array.isArray(data.companies) && data.companies.length ? data.companies : DEFAULT_COMPANIES);
-        setLocations(Array.isArray(data.locations) && data.locations.length ? data.locations : DEFAULT_LOCATIONS);
-        setAgents(Array.isArray(data.agents) && data.agents.length ? data.agents : DEFAULT_AGENTS);
-        setCities(Array.isArray(data.cities) && data.cities.length ? data.cities : DEFAULT_CITIES);
-        setStates(Array.isArray(data.states) && data.states.length ? data.states : DEFAULT_STATES);
-        setClients(Array.isArray(data.clients) ? data.clients : []);
-      } else {
-        setCompanies(DEFAULT_COMPANIES);
-        setLocations(DEFAULT_LOCATIONS);
-        setAgents(DEFAULT_AGENTS);
-        setCities(DEFAULT_CITIES);
-        setStates(DEFAULT_STATES);
-        setClients([]);
-      }
-    });
-
-    return () => unsub();
-  }, []);
-
-  const buildDefaultShipment = () => ({
-    id: Date.now(),
-    refNum: '',
-    client: '',
-    shipDate: '',
-    returnDate: '',
-    location: locations?.[0] || '',
-    returnLocation: '',
-    city: '',
-    state: '',
-    company: companies?.[0] || '',
-    shipMethod: SHIP_METHODS[0],
-    vehicleType: VEHICLE_TYPES?.[0] || '',
-    shippingCharge: 0,
-    po: '',
-    agent: agents?.[0] || '',
-  });
-
-  useEffect(() => {
-    const initializeMonths = async () => {
-      try {
-        for (const month of MONTHS) {
-          const mref = monthDocRef(selectedYear, month);
-          const snapshot = await getDoc(mref);
-          const missing = !snapshot.exists();
-          const empty = !missing && (!snapshot.data().shipments || snapshot.data().shipments.length === 0);
-          if (missing || empty) {
-            await setDoc(mref, {
-              shipments: [buildDefaultShipment()],
-              lastModified: new Date().toISOString(),
-              month,
-              year: selectedYear,
-            });
-          }
-        }
-      } catch (err) {
-        console.error('Error initializing months:', err);
-      }
-    };
-    initializeMonths();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [companies, locations, agents, cities, selectedYear]);
-
-  useEffect(() => {
-    if (isYTD) {
-      const unsubs = [];
-      const bucket = {};
-
-      const refresh = () => {
-        const all = MONTHS.flatMap((m) => bucket[m] || []);
-        setShipments(all);
-      };
-
-      MONTHS.forEach((m) => {
-        const ref = monthDocRef(selectedYear, m);
-        const unsub = onSnapshot(ref, (snap) => {
-          bucket[m] = snap.exists() ? (snap.data().shipments || []) : [];
-          refresh();
-        });
-        unsubs.push(unsub);
-      });
-
-      return () => unsubs.forEach((u) => u());
-    }
-
-    const mref = monthDocRef(selectedYear, selectedMonth);
-    const unsubscribe = onSnapshot(mref, (docSnapshot) => {
-      if (docSnapshot.exists()) {
-        setShipments(docSnapshot.data().shipments || []);
-      } else {
-        setShipments([]);
-      }
-    });
-    return () => unsubscribe();
-  }, [selectedMonth, selectedYear, isYTD]);
-
-  useEffect(() => {
-    if (!showDropdown) return;
-    const computeDropdownPosition = () => {
-      if (!inputRef.current) return;
-      const rect = inputRef.current.getBoundingClientRect();
-      const vh = window.innerHeight;
-      const maxHeight = 400;
-      const padding = 6;
-
-      const spaceBelow = vh - rect.bottom - padding;
-      const spaceAbove = rect.top - padding;
-      const openUp = spaceBelow < 220 && spaceAbove > spaceBelow;
-      const height = Math.min(openUp ? spaceAbove - padding : spaceBelow - padding, maxHeight);
-
-      setDropdownRect({
-        top: openUp ? rect.top - height - 4 : rect.bottom + 4,
-        left: rect.left,
-        width: rect.width,
-        height: Math.max(180, height),
-      });
-    };
-    computeDropdownPosition();
-    const onScrollResize = () => computeDropdownPosition();
-    window.addEventListener('scroll', onScrollResize, true);
-    window.addEventListener('resize', onScrollResize);
-    return () => {
-      window.removeEventListener('scroll', onScrollResize, true);
-      window.removeEventListener('resize', onScrollResize);
-    };
-  }, [showDropdown, editValue]);
-
-  const handleLogin = () => {
-    setIsAuthenticated(true);
+  const handleLogin = (success) => {
+    setIsAuthenticated(success);
   };
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      setIsAuthenticated(false);
       sessionStorage.removeItem('isAuthenticated');
+      setIsAuthenticated(false);
     } catch (error) {
       console.error('Logout error:', error);
+      alert('Failed to logout. Please try again.');
     }
   };
 
-  const saveToFirebase = async (updatedShipments) => {
+  // Firebase config listener
+  useEffect(() => {
+    const cfgRef = doc(db, 'freight-config', 'global');
+    const unsub = onSnapshot(cfgRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.companies) setCompanies(data.companies);
+        if (data.locations) setLocations(data.locations);
+        if (data.agents) setAgents(data.agents);
+        if (data.cities) setCities(data.cities);
+        if (data.states) setStates(data.states);
+        if (data.clients) setClients(data.clients);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // Load shipments for selected year/month
+  useEffect(() => {
     if (isYTD) {
-      alert('In YTD view, existing rows are read-only. Use "+ Add Row" to add to your target month.');
-      return;
-    }
-    try {
-      setIsSaving(true);
-      const mref = monthDocRef(selectedYear, selectedMonth);
-      await setDoc(mref, {
-        shipments: updatedShipments,
-        lastModified: new Date().toISOString(),
-        month: selectedMonth,
-        year: selectedYear,
+      const loadYtd = async () => {
+        const allShipments = [];
+        for (const m of MONTHS) {
+          const snap = await getDoc(monthDocRef(selectedYear, m));
+          if (snap.exists()) {
+            const data = snap.data();
+            if (data.shipments) allShipments.push(...data.shipments);
+          }
+        }
+        setShipments(allShipments);
+      };
+      loadYtd();
+    } else {
+      const unsub = onSnapshot(monthDocRef(selectedYear, selectedMonth), (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setShipments(data.shipments || []);
+        } else {
+          setShipments([]);
+        }
       });
-      setLastSaved(new Date().toLocaleTimeString());
-    } catch (error) {
-      console.error('Error saving to Firebase:', error);
-      alert('Failed to save. Please check your connection.');
-    } finally {
-      setIsSaving(false);
+      return () => unsub();
     }
-  };
+  }, [selectedYear, selectedMonth, isYTD]);
 
-  const handleMonthChange = async (newMonth) => {
-    setSelectedMonth(newMonth);
-    if (newMonth === 'YTD') return;
-
-    try {
-      const mref = monthDocRef(selectedYear, newMonth);
-      const snapshot = await getDoc(mref);
-      const missing = !snapshot.exists();
-      const empty = !missing && (!snapshot.data().shipments || snapshot.data().shipments.length === 0);
-      if (missing || empty) {
-        await setDoc(mref, {
-          shipments: [buildDefaultShipment()],
+  // Auto-save when shipments change
+  useEffect(() => {
+    if (isYTD || shipments.length === 0) return;
+    let timeoutId;
+    const saveData = async () => {
+      try {
+        await setDoc(monthDocRef(selectedYear, selectedMonth), {
+          shipments,
           lastModified: new Date().toISOString(),
-          month: newMonth,
+          month: selectedMonth,
           year: selectedYear,
         });
+      } catch (err) {
+        console.error('Auto-save failed:', err);
       }
-    } catch (e) {
-      console.error('Error preparing month:', e);
+    };
+    timeoutId = setTimeout(saveData, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [shipments, selectedYear, selectedMonth, isYTD]);
+
+  const handleMonthChange = (newMonth) => {
+    setEditingCell(null);
+    setSelectedMonth(newMonth);
+  };
+
+  const handleAddRow = async () => {
+    const targetMonth = isYTD ? editTargetMonth : selectedMonth;
+    const newRow = {
+      refNum: '',
+      client: '',
+      shipDate: '',
+      returnDate: '',
+      location: '',
+      returnLocation: '',
+      city: '',
+      state: '',
+      company: '',
+      shipMethod: '',
+      vehicleType: '',
+      shippingCharge: 0,
+      po: '',
+      agent: '',
+    };
+    if (isYTD) {
+      const snap = await getDoc(monthDocRef(selectedYear, targetMonth));
+      const existing = snap.exists() ? (snap.data().shipments || []) : [];
+      const updated = [newRow, ...existing];
+      await setDoc(monthDocRef(selectedYear, targetMonth), {
+        shipments: updated,
+        lastModified: new Date().toISOString(),
+        month: targetMonth,
+        year: selectedYear,
+      });
+      alert(`Row added to ${targetMonth} ${selectedYear}. Switch to that month to edit.`);
+    } else {
+      setShipments([newRow, ...shipments]);
     }
   };
 
-  const handleCellClick = (rowIndex, field) => {
-    if (isYTD) return;
-    if (!shipments[rowIndex]) return;
-    const value = shipments[rowIndex][field];
-    setEditingCell({ rowIndex, field });
-    setEditValue(value ?? '');
+  const handleDeleteRow = async (rowIndex) => {
+    if (!window.confirm('Delete this row?')) return;
+    if (isYTD) {
+      alert('Cannot delete from YTD view. Switch to a specific month.');
+      return;
+    }
+    const updated = shipments.filter((_, i) => i !== rowIndex);
+    setShipments(updated);
+  };
 
-    if (field === 'company') {
-      setFilteredOptions(companies);
-      setShowDropdown(true);
-    } else if (field === 'agent') {
-      setFilteredOptions(agents);
-      setShowDropdown(true);
-    } else if (field === 'location' || field === 'returnLocation') {
-      setFilteredOptions(locations);
-      setShowDropdown(true);
-    } else if (field === 'city') {
-      setFilteredOptions(cities);
-      setShowDropdown(true);
-    } else if (field === 'state') {
-      setFilteredOptions(states);
-      setShowDropdown(true);
-    } else if (field === 'client') {
-      setFilteredOptions(clients);
-      setShowDropdown(true);
-    } else if (field === 'shipMethod') {
-      setFilteredOptions(SHIP_METHODS);
-      setShowDropdown(true);
-    } else if (field === 'vehicleType') {
-      setFilteredOptions(VEHICLE_TYPES);
-      setShowDropdown(true);
+  const startEditCell = (rowIndex, field, currentValue) => {
+    if (isYTD) return;
+    setEditingCell({ rowIndex, field });
+    setEditValue(currentValue ?? '');
+    setShowDropdown(false);
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        const rect = inputRef.current.getBoundingClientRect();
+        setDropdownRect({ left: rect.left, top: rect.bottom, width: rect.width });
+      }
+    }, 0);
+  };
+
+  const handleCellChange = (e) => {
+    const val = e.target.value;
+    setEditValue(val);
+    const field = editingCell.field;
+    if (
+      field === 'company' ||
+      field === 'agent' ||
+      field === 'location' ||
+      field === 'returnLocation' ||
+      field === 'city' ||
+      field === 'state' ||
+      field === 'client' ||
+      field === 'shipMethod' ||
+      field === 'vehicleType'
+    ) {
+      let opts = [];
+      if (field === 'company') opts = companies;
+      else if (field === 'agent') opts = agents;
+      else if (field === 'location' || field === 'returnLocation') opts = locations;
+      else if (field === 'city') opts = cities;
+      else if (field === 'state') opts = states;
+      else if (field === 'client') opts = clients;
+      else if (field === 'shipMethod') opts = SHIP_METHODS;
+      else if (field === 'vehicleType') opts = VEHICLE_TYPES;
+
+      if (val.trim() === '') {
+        setFilteredOptions(opts);
+        setShowDropdown(true);
+      } else {
+        const lower = val.toLowerCase();
+        const filtered = opts.filter(item =>
+          String(item).toLowerCase().includes(lower)
+        );
+        setFilteredOptions(filtered);
+        setShowDropdown(filtered.length > 0);
+      }
     } else {
       setShowDropdown(false);
     }
   };
 
-  const handleCellChange = (e) => {
-    const value = e.target.value;
-    setEditValue(value);
+  const commitEdit = () => {
+    if (!editingCell) return;
+    const { rowIndex, field } = editingCell;
+    const updatedShipments = [...shipments];
+    const isNumeric = field === 'shippingCharge';
+    let finalValue = editValue;
 
-    const field = editingCell?.field;
-    if (!field) return;
-
-    if (['company', 'agent', 'location', 'returnLocation', 'city', 'state', 'client', 'shipMethod', 'vehicleType'].includes(field)) {
-      const options =
-        field === 'company'
-          ? companies
-          : field === 'agent'
-          ? agents
-          : field === 'city'
-          ? cities
-          : field === 'state'
-          ? states
-          : field === 'client'
-          ? clients
-          : field === 'shipMethod'
-          ? SHIP_METHODS
-          : field === 'vehicleType'
-          ? VEHICLE_TYPES
-          : locations;
-
-      const filtered = options.filter((option) =>
-        String(option).toLowerCase().includes(String(value).toLowerCase())
-      );
-      setFilteredOptions(filtered);
-      setShowDropdown(filtered.length > 0);
+    if (isNumeric) {
+      const num = parseFloat(editValue);
+      finalValue = isNaN(num) ? 0 : num;
+    } else if (field === 'company') {
+      finalValue = editValue.toUpperCase();
+    } else if (field === 'agent') {
+      let candidate = editValue.toUpperCase();
+      if (!candidate.includes('.')) {
+        const parts = candidate.split(/\s+/).filter(Boolean);
+        if (parts.length >= 2) {
+          const firstInitial = parts[0][0];
+          const last = parts.slice(1).join('').replace(/[^A-Z]/g, '');
+          candidate = `${firstInitial}.${last}`;
+        }
+      }
+      finalValue = candidate;
+    } else if (field === 'state') {
+      finalValue = editValue.toUpperCase().slice(0, 2);
     }
+
+    updatedShipments[rowIndex][field] = finalValue;
+    setShipments(updatedShipments);
+    setEditingCell(null);
+    setShowDropdown(false);
   };
 
-  const handleSelectOption = (option) => {
+  const cancelEdit = () => {
+    setEditingCell(null);
+    setShowDropdown(false);
+  };
+
+  const selectOption = (option) => {
     setEditValue(option);
     setShowDropdown(false);
-    setDropdownRect(null);
-    inputRef.current?.focus();
+    setTimeout(() => {
+      if (inputRef.current) inputRef.current.focus();
+    }, 0);
   };
 
-  const handleCellBlur = () => {
-    setTimeout(() => {
-      if (editingCell) {
-        const { rowIndex, field } = editingCell;
-        const newShipments = [...shipments];
-        if (field === 'shippingCharge') {
-          const numValue = parseFloat(editValue);
-          newShipments[rowIndex][field] = isNaN(numValue) ? 0 : numValue;
-        } else if (field === 'state') {
-          const usStateRE = /^[A-Za-z]{2}$/;
-          let val = (editValue || '').toString().trim();
-          if (val) {
-            val = val.toUpperCase().slice(0, 2);
-            if (!usStateRE.test(val)) {
-              // keep as-is if not two letters, but uppercase
-              // (allows future non-US states if needed)
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commitEdit();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelEdit();
+    }
+  };
+
+  const handleSingleAdd = async () => {
+    const { type, value } = singleAddModal;
+    if (!value || !value.trim()) {
+      alert('Please enter a value');
+      return;
+    }
+
+    let currentList, fieldName, processor;
+
+    switch (type) {
+      case 'company':
+        currentList = companies;
+        fieldName = 'companies';
+        processor = (val) => val.toUpperCase();
+        break;
+      case 'location':
+        currentList = locations;
+        fieldName = 'locations';
+        processor = (val) => val;
+        break;
+      case 'agent':
+        currentList = agents;
+        fieldName = 'agents';
+        processor = (val) => {
+          let candidate = val.toUpperCase();
+          if (!candidate.includes('.')) {
+            const parts = candidate.split(/\s+/).filter(Boolean);
+            if (parts.length >= 2) {
+              const firstInitial = parts[0][0];
+              const last = parts.slice(1).join('').replace(/[^A-Z]/g, '');
+              candidate = `${firstInitial}.${last}`;
             }
           }
-          newShipments[rowIndex][field] = val;
-        } else {
-          newShipments[rowIndex][field] = editValue;
-        }
-        saveToFirebase(newShipments);
-        setEditingCell(null);
-        setEditValue('');
-        setShowDropdown(false);
-        setDropdownRect(null);
-      }
-    }, 200);
-  };
-
-  const handleKeyDown = (e, rowIndex, field) => {
-    const fields = [
-      'refNum', 'client',
-      'shipDate', 'returnDate',
-      'location', 'returnLocation', 'city', 'state',
-      'company', 'shipMethod', 'vehicleType',
-      'shippingCharge', 'po', 'agent',
-    ];
-
-    const currentIndex = fields.indexOf(field);
-
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      e.stopPropagation();
-      setEditingCell(null);
-      setEditValue('');
-      setShowDropdown(false);
-      setDropdownRect(null);
-      return;
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (showDropdown && filteredOptions.length > 0) {
-        handleSelectOption(filteredOptions[0]);
-      }
-      handleCellBlur();
-      if (rowIndex < shipments.length - 1) {
-        setTimeout(() => handleCellClick(rowIndex + 1, field), 250);
-      }
-    } else if (e.key === 'Tab') {
-      e.preventDefault();
-      handleCellBlur();
-      if (currentIndex < fields.length - 1) {
-        setTimeout(() => handleCellClick(rowIndex, fields[currentIndex + 1]), 250);
-      }
+          return candidate;
+        };
+        break;
+      case 'city':
+        currentList = cities;
+        fieldName = 'cities';
+        processor = (val) => val;
+        break;
+      case 'state':
+        currentList = states;
+        fieldName = 'states';
+        processor = (val) => (val || '').toUpperCase().slice(0,2);
+        break;
+      case 'client':
+        currentList = clients;
+        fieldName = 'clients';
+        processor = (val) => val;
+        break;
+      default:
+        return;
     }
-  };
 
-  const handleAddRow = async () => {
-    if (isYTD) {
-      try {
-        const targetRef = monthDocRef(selectedYear, editTargetMonth);
-        const snap = await getDoc(targetRef);
-        const existing = snap.exists() ? (snap.data().shipments || []) : [];
-        const updated = [buildDefaultShipment(), ...existing];
-        await setDoc(targetRef, {
-          shipments: updated,
-          lastModified: new Date().toISOString(),
-          month: editTargetMonth,
-          year: selectedYear,
-        });
-        alert(`Row added to ${editTargetMonth} ${selectedYear}.`);
-      } catch (e) {
-        console.error('Add row (YTD) failed:', e);
-        alert('Failed to add row to target month.');
-      }
+    const processed = processor(value.trim());
+    const exists = currentList.some(item => 
+      String(item).toLowerCase() === String(processed).toLowerCase()
+    );
+
+    if (exists) {
+      alert(`"${processed}" already exists!`);
       return;
     }
 
-    const newShipment = buildDefaultShipment();
-    const updatedShipments = [newShipment, ...shipments];
-    setShipments(updatedShipments);
-    saveToFirebase(updatedShipments);
-    setTimeout(() => {
-      handleCellClick(0, 'refNum');
-    }, 300);
-  };
+    const updatedList = [...currentList, processed].sort((a, b) =>
+      String(a).localeCompare(String(b), undefined, { sensitivity: 'base' })
+    );
 
-  const handleDeleteRow = (index) => {
-    if (isYTD) {
-      alert('In YTD view, deleting existing rows is disabled.');
-      return;
-    }
-    if (window.confirm('Delete this shipment?')) {
-      const updatedShipments = shipments.filter((_, i) => i !== index);
-      saveToFirebase(updatedShipments);
+    try {
+      const cfgRef = doc(db, 'freight-config', 'global');
+      await setDoc(cfgRef, { 
+        [fieldName]: updatedList, 
+        updatedAt: new Date().toISOString() 
+      }, { merge: true });
+      
+      setSingleAddModal({ open: false, type: '', value: '' });
+      alert(`✅ Added "${processed}" successfully!`);
+    } catch (e) {
+      console.error(`Failed to add ${type}:`, e);
+      alert(`Failed to add ${type}. Check your permissions/rules.`);
     }
   };
 
   const handleBulkAdd = async () => {
-    // Split by newlines and commas to create individual entries
     // This preserves spaces within entry names (e.g., "Oncue Staging")
     const lines = bulkAddModal.items
       .split(/[\n\r,]+/)
@@ -1010,139 +922,120 @@ function App() {
   capture(stateStatsRef.current),
 ]);
 
-
-    if (statsWereHidden) {
-      setStatusEnabled(false);
-    }
+if (statsWereHidden) {
+  setStatusEnabled(false);
+}
 
     const wb = new ExcelJS.Workbook();
-    const dataRows = mapRowsForExcel(shipments);
+    const rows = mapRowsForExcel(shipments);
 
-    buildDataSheetPretty(wb, `${selectedMonth} ${selectedYear}`, dataRows);
-
-    if (isYTD) {
-      const { rows, monthlyTotals, grandTotal } = await buildYtdMatrix();
-      const sheet = wb.addWorksheet('YTD Summary', { views: [{ state: 'frozen', ySplit: 1 }] });
-
-      const header = ['Company', ...MONTHS, 'Total'];
-      sheet.columns = header.map((h, i) => ({ header: h, key: `c${i}` }));
-      sheet.addRow(header);
+    if (!isYTD) {
+      buildDataSheetPretty(wb, `${selectedMonth} ${selectedYear}`, rows);
+    } else {
+      const { rows: ytdRows, monthlyTotals, grandTotal } = await buildYtdMatrix();
+      const sheet = wb.addWorksheet('YTD Totals', { views: [{ state: 'frozen', ySplit: 1 }] });
+      sheet.columns = [
+        { header: 'Company', key: 'company' },
+        ...MONTHS.map((m) => ({ header: m, key: m })),
+        { header: 'Total', key: 'total' },
+      ];
       sheet.getRow(1).font = { bold: true };
-      sheet.getRow(1).alignment = { vertical: 'middle' };
-      sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFF6FF' } };
-      sheet.autoFilter = { from: 'A1', to: 'N1' };
 
-      rows.forEach(r => {
-        const rowVals = [r.company, ...r.monthsVals, r.total];
-        sheet.addRow(rowVals);
+      ytdRows.forEach((row) => {
+        const rowData = { company: row.company, total: row.total };
+        MONTHS.forEach((m, idx) => {
+          rowData[m] = row.monthsVals[idx];
+        });
+        sheet.addRow(rowData);
       });
 
-      const totalsRow = ['TOTAL', ...monthlyTotals, grandTotal];
-      const last = sheet.addRow(totalsRow);
-      last.font = { bold: true };
-      last.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFDE68A' } };
+      const totalsRowData = { company: 'TOTAL', total: grandTotal };
+      MONTHS.forEach((m, idx) => {
+        totalsRowData[m] = monthlyTotals[idx];
+      });
+      const totalsRow = sheet.addRow(totalsRowData);
+      totalsRow.font = { bold: true };
+      totalsRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEB3B' } };
 
-      for (let c = 2; c <= 14; c++) {
-        sheet.getColumn(c).numFmt = '$#,##0.00';
-      }
-
-      autosizeColumns(sheet, { min: 10, max: 32, buffer: 2 });
+      MONTHS.forEach((m) => {
+        sheet.getColumn(m).numFmt = '$#,##0.00';
+      });
+      sheet.getColumn('total').numFmt = '$#,##0.00';
+      autosizeColumns(sheet, { min: 10, max: 40, buffer: 2 });
     }
 
-    const dash = wb.addWorksheet('Dashboard', { pageSetup: { orientation: 'landscape' } });
-
-    const addImg = (base64, tlRow, tlCol, widthPx, heightPx) => {
-      if (!base64) return;
-      const imgId = wb.addImage({ base64, extension: 'png' });
-      dash.addImage(imgId, {
-        tl: { col: tlCol, row: tlRow },
-        ext: { width: widthPx, height: heightPx },
-        editAs: 'oneCell',
-      });
+    const addImageSheet = (img, title) => {
+      if (!img) return;
+      const s = wb.addWorksheet(title);
+      const imgId = wb.addImage({ base64: img, extension: 'png' });
+      s.addImage(imgId, { tl: { col: 0, row: 0 }, ext: { width: 800, height: 600 } });
+      s.getColumn(1).width = 100;
+      s.getRow(1).height = 450;
     };
 
-    const title = dash.getCell('A1');
-    title.value = `Dashboard – ${selectedMonth} ${selectedYear}`;
-    title.font = { bold: true, size: 16 };
-    dash.mergeCells('A1:F1');
-
-    addImg(imgCostPerCompany, 2, 0, 900, 350);
-    addImg(imgShipmentCount, 18, 0, 900, 350);
-    addImg(imgRevenueDist, 34, 0, 900, 350);
-    addImg(imgClientStats, 50, 0, 900, 350);
-    addImg(imgAgentStats, 66, 0, 900, 350);
-    addImg(imgCityStats, 82, 0, 900, 350);
-	addImg(imgStateStats,     98, 0, 900, 350);
+    if (!isYTD && statusEnabled) {
+      addImageSheet(imgCostPerCompany, 'Cost by Company');
+      addImageSheet(imgShipmentCount, 'Shipment Count');
+      addImageSheet(imgRevenueDist, 'Revenue Distribution');
+      addImageSheet(imgClientStats, 'Client Stats');
+      addImageSheet(imgAgentStats, 'Agent Stats');
+      addImageSheet(imgCityStats, 'City Stats');
+      addImageSheet(imgStateStats, 'State Stats');
+    }
 
     const buf = await wb.xlsx.writeBuffer();
-    downloadBlob(
-      new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-      `freight-${selectedYear}-${selectedMonth}-${new Date().toISOString().split('T')[0]}.xlsx`
-    );
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const filename = isYTD
+      ? `Freight_YTD_${selectedYear}.xlsx`
+      : `Freight_${selectedMonth}_${selectedYear}.xlsx`;
+    downloadBlob(blob, filename);
   };
 
   const exportAllMonthsExcel = async () => {
-    try {
-      const wb = new ExcelJS.Workbook();
-      const monthToRowsMap = {};
-
-      for (const month of MONTHS) {
-        const docSnap = await getDoc(monthDocRef(selectedYear, month));
-        const list = docSnap.exists() ? docSnap.data().shipments || [] : [];
-        const rows = mapRowsForExcel(list);
-        monthToRowsMap[month] = rows;
-        buildDataSheetPretty(wb, `${month} ${selectedYear}`, rows);
-      }
-
-      buildAllRowsSheet(wb, selectedYear, monthToRowsMap);
-
-      const buf = await wb.xlsx.writeBuffer();
-      downloadBlob(
-        new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-        `freight-${selectedYear}-all-months-${new Date().toISOString().split('T')[0]}.xlsx`
-      );
-    } catch (error) {
-      console.error('Export failed:', error);
-      alert(`Export failed: ${error.message}`);
+    const wb = new ExcelJS.Workbook();
+    const monthToRowsMap = {};
+    for (const m of MONTHS) {
+      const snap = await getDoc(monthDocRef(selectedYear, m));
+      monthToRowsMap[m] = snap.exists() ? mapRowsForExcel(snap.data().shipments || []) : [];
     }
-  };
 
-  const headerKeyMap = {
-    'reference #': 'refNum',
-    'client': 'client',
-    'ship date': 'shipDate',
-    'return date': 'returnDate',
-    'location': 'location',
-    'return location': 'returnLocation',
-    'city': 'city',
-    'state': 'state',
-    'company': 'company',
-    'ship method': 'shipMethod',
-    'vehicle type': 'vehicleType',
-    'charges': 'shippingCharge',
-    'po': 'po',
-    'agent': 'agent',
+    MONTHS.forEach((m) => {
+      buildDataSheetPretty(wb, `${m} ${selectedYear}`, monthToRowsMap[m]);
+    });
+
+    buildAllRowsSheet(wb, selectedYear, monthToRowsMap);
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    downloadBlob(blob, `Freight_All_Months_${selectedYear}.xlsx`);
   };
 
   const parseSheetToShipments = (sheet) => {
-    if (!sheet || sheet.rowCount < 2) return [];
-
+    const shipmentsOut = [];
     const headerRow = sheet.getRow(1);
+
     const idxToKey = {};
-    headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
-      const label = String(cell.value || '').trim().toLowerCase();
-      if (label && headerKeyMap[label]) {
-        idxToKey[colNumber] = headerKeyMap[label];
-      }
+    headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      const headerText = (cell.value || '').toString().toLowerCase().trim();
+      if (headerText.includes('reference')) idxToKey[colNumber] = 'refNum';
+      else if (headerText.includes('client')) idxToKey[colNumber] = 'client';
+      else if (headerText.includes('ship date')) idxToKey[colNumber] = 'shipDate';
+      else if (headerText.includes('return date')) idxToKey[colNumber] = 'returnDate';
+      else if (headerText.includes('return location')) idxToKey[colNumber] = 'returnLocation';
+      else if (headerText.includes('location')) idxToKey[colNumber] = 'location';
+      else if (headerText.includes('city')) idxToKey[colNumber] = 'city';
+      else if (headerText.includes('state')) idxToKey[colNumber] = 'state';
+      else if (headerText.includes('company')) idxToKey[colNumber] = 'company';
+      else if (headerText.includes('ship method')) idxToKey[colNumber] = 'shipMethod';
+      else if (headerText.includes('vehicle')) idxToKey[colNumber] = 'vehicleType';
+      else if (headerText.includes('charge')) idxToKey[colNumber] = 'shippingCharge';
+      else if (headerText.includes('po')) idxToKey[colNumber] = 'po';
+      else if (headerText.includes('agent')) idxToKey[colNumber] = 'agent';
     });
 
-    const shipmentsOut = [];
     for (let r = 2; r <= sheet.rowCount; r++) {
       const row = sheet.getRow(r);
-      if (!row || row.cellCount === 0) continue;
-
       const s = {
-        id: Date.now() + r,
         refNum: '',
         client: '',
         shipDate: '',
@@ -1263,6 +1156,86 @@ function App() {
     } catch (err) {
       console.error('Import failed:', err);
       alert('Failed to import Excel. Make sure you selected the "Export All (Excel)" file.');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // NEW: Import single month functionality
+  const onClickImportMonth = () => monthFileInputRef.current?.click();
+
+  const onImportMonthFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    const targetMonth = isYTD ? editTargetMonth : selectedMonth;
+
+    if (!window.confirm(
+      `This will OVERWRITE data for ${targetMonth} ${selectedYear}.\\n\\n` +
+      `The Excel file should have a sheet named either:\\n` +
+      `• "${targetMonth}"\\n` +
+      `• "${targetMonth} ${selectedYear}"\\n\\n` +
+      `Continue?`
+    )) {
+      return;
+    }
+
+    try {
+      setIsImporting(true);
+      const buf = await file.arrayBuffer();
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buf);
+
+      let sheetToImport = null;
+      let foundSheetName = null;
+
+      // Look for a sheet named either "January" or "January 2025"
+      for (const sheet of wb.worksheets) {
+        const name = (sheet.name || '').trim();
+        
+        // Match "January 2025" format
+        if (name === `${targetMonth} ${selectedYear}`) {
+          sheetToImport = sheet;
+          foundSheetName = name;
+          break;
+        }
+        
+        // Match just "January" format
+        if (name === targetMonth) {
+          sheetToImport = sheet;
+          foundSheetName = name;
+          break;
+        }
+      }
+
+      if (!sheetToImport) {
+        alert(
+          `Could not find a sheet named "${targetMonth}" or "${targetMonth} ${selectedYear}".\\n\\n` +
+          `Available sheets: ${wb.worksheets.map(s => s.name).join(', ')}`
+        );
+        return;
+      }
+
+      const rows = parseSheetToShipments(sheetToImport);
+
+      await setDoc(monthDocRef(selectedYear, targetMonth), {
+        shipments: rows,
+        lastModified: new Date().toISOString(),
+        month: targetMonth,
+        year: selectedYear,
+      });
+
+      alert(
+        `✅ Import successful!\\n\\n` +
+        `Sheet: "${foundSheetName}"\\n` +
+        `Imported to: ${targetMonth} ${selectedYear}\\n` +
+        `Rows: ${rows.length}`
+      );
+
+    } catch (err) {
+      console.error('Import month failed:', err);
+      alert('Failed to import Excel. Please check the file format and try again.');
     } finally {
       setIsImporting(false);
     }
@@ -1448,163 +1421,81 @@ function App() {
             type={isNumeric ? 'number' : field.includes('Date') ? 'date' : 'text'}
             value={editValue}
             onChange={handleCellChange}
-            onBlur={handleCellBlur}
-            onKeyDown={(e) => handleKeyDown(e, rowIndex, field)}
+            onBlur={commitEdit}
+            onKeyDown={handleKeyDown}
             style={{
               width: '100%',
               padding: '4px 8px',
               border: '2px solid #3b82f6',
-              outline: 'none',
+              borderRadius: '4px',
               fontSize: '12px',
-              textTransform: field === 'state' ? 'uppercase' : 'none',
+              outline: 'none',
+              boxSizing: 'border-box',
             }}
-            step={isNumeric ? '0.01' : undefined}
-            autoComplete="off"
-            maxLength={field === 'state' ? 2 : undefined}
           />
-          {hasAutocomplete && showDropdown && filteredOptions.length > 0 && dropdownRect &&
-            createPortal(
-              <div
-                style={{
-                  position: 'fixed',
-                  zIndex: 9999,
-                  top: dropdownRect.top,
-                  left: dropdownRect.left,
-                  width: dropdownRect.width,
-                  maxHeight: dropdownRect.height,
-                  overflowY: 'auto',
-                  background: 'white',
-                  border: '1px solid #cbd5e1',
-                  borderRadius: 8,
-                  boxShadow: '0 12px 24px rgba(0,0,0,0.18)',
-                }}
-              >
-                {filteredOptions.map((option, idx) => (
-                  <div
-                    key={idx}
-                    onMouseDown={() => handleSelectOption(option)}
-                    style={{ padding: '10px 12px', fontSize: 13, cursor: 'pointer' }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = '#eef2ff')}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'white')}
-                  >
-                    {option}
-                  </div>
-                ))}
-              </div>,
-              document.body
-            )}
+          {hasAutocomplete && showDropdown && filteredOptions.length > 0 && dropdownRect && createPortal(
+            <div
+              style={{
+                position: 'fixed',
+                left: dropdownRect.left,
+                top: dropdownRect.top,
+                width: dropdownRect.width,
+                maxHeight: '200px',
+                overflowY: 'auto',
+                background: 'white',
+                border: '1px solid #cbd5e1',
+                borderRadius: '4px',
+                boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                zIndex: 10000,
+                isolation: 'isolate',
+              }}
+            >
+              {filteredOptions.map((opt, idx) => (
+                <div
+                  key={idx}
+                  onMouseDown={() => selectOption(opt)}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    background: 'white',
+                    borderBottom: '1px solid #f1f5f9',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                >
+                  {opt}
+                </div>
+              ))}
+            </div>,
+            document.body
+          )}
         </div>
       );
     }
 
     return (
       <div
-        onClick={() => handleCellClick(rowIndex, field)}
+        onClick={() => startEditCell(rowIndex, field, value)}
         style={{
           width: '100%',
           padding: '4px 8px',
-          cursor: isYTD ? 'not-allowed' : 'cell',
           fontSize: '12px',
+          cursor: 'pointer',
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.background = '#eff6ff')}
-        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+        title="Click to edit"
       >
         {isNumeric && value ? `$${Number(value).toFixed(2)}` : value || ''}
       </div>
     );
   };
 
-  const handleSingleAdd = async () => {
-    const value = singleAddModal.value.trim();
-    
-    if (!value) {
-      alert('Please enter a value');
-      return;
-    }
-
-    const type = singleAddModal.type;
-    let currentList, fieldName, processor;
-
-    switch (type) {
-      case 'company':
-        currentList = companies;
-        fieldName = 'companies';
-        processor = (val) => val.toUpperCase();
-        break;
-      case 'location':
-        currentList = locations;
-        fieldName = 'locations';
-        processor = (val) => val;
-        break;
-      case 'agent':
-        currentList = agents;
-        fieldName = 'agents';
-        processor = (val) => {
-          let candidate = val.toUpperCase();
-          if (!candidate.includes('.')) {
-            const parts = candidate.split(/\s+/).filter(Boolean);
-            if (parts.length >= 2) {
-              const firstInitial = parts[0][0];
-              const last = parts.slice(1).join('').replace(/[^A-Z]/g, '');
-              candidate = `${firstInitial}.${last}`;
-            }
-          }
-          return candidate;
-        };
-        break;
-      case 'city':
-        currentList = cities;
-        fieldName = 'cities';
-        processor = (val) => val;
-        break;
-      case 'state':
-        currentList = states;
-        fieldName = 'states';
-        processor = (val) => (val || '').toUpperCase().slice(0,2);
-        break;
-      case 'client':
-        currentList = clients;
-        fieldName = 'clients';
-        processor = (val) => val;
-        break;
-      default:
-        return;
-    }
-
-    const processed = processor(value);
-    const exists = currentList.some(item => 
-      String(item).toLowerCase() === String(processed).toLowerCase()
-    );
-    
-    if (exists) {
-      alert(`"${processed}" already exists!`);
-      return;
-    }
-
-    const updatedList = [...currentList, processed].sort((a, b) =>
-      String(a).localeCompare(String(b), undefined, { sensitivity: 'base' })
-    );
-
-    try {
-      const cfgRef = doc(db, 'freight-config', 'global');
-      await setDoc(cfgRef, { 
-        [fieldName]: updatedList, 
-        updatedAt: new Date().toISOString() 
-      }, { merge: true });
-      
-      setSingleAddModal({ open: false, type: '', value: '' });
-      alert(`✅ Added "${processed}" successfully!`);
-    } catch (e) {
-      console.error(`Failed to add ${type}:`, e);
-      alert(`Failed to add ${type}. Check your permissions/rules.`);
-    }
-  };
-
   const SingleAddModal = () => {
     if (!singleAddModal.open) return null;
 
     return createPortal(
-      <div
+      <div 
+        role="dialog" aria-modal="true"
         style={{
           position: 'fixed',
           top: 0,
@@ -1633,40 +1524,32 @@ function App() {
           onClick={(e) => e.stopPropagation()}
         >
           <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '16px', color: '#1e293b' }}>
-            Quick Add One {singleAddModal.type.charAt(0).toUpperCase() + singleAddModal.type.slice(1)}
+            Quick Add {singleAddModal.type.charAt(0).toUpperCase() + singleAddModal.type.slice(1)}
           </h3>
-
-          <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '12px' }}>
-            Enter the {singleAddModal.type} name:
-          </p>
 
           <input
             type="text"
-            dir="ltr"
             value={singleAddModal.value}
             onChange={(e) => setSingleAddModal({ ...singleAddModal, value: e.target.value })}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                handleSingleAdd();
-              }
-            }}
-            placeholder={`Enter ${singleAddModal.type} name...`}
+            placeholder={`Enter ${singleAddModal.type} name`}
             style={{
               width: '100%',
               padding: '12px',
               border: '1px solid #cbd5e1',
               borderRadius: '8px',
               fontSize: '14px',
-              fontFamily: 'Arial, sans-serif',
               marginBottom: '16px',
               boxSizing: 'border-box',
-              direction: 'ltr',
-              textAlign: 'left',
             }}
             autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSingleAdd();
+              }
+            }}
           />
-                  
+          
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
             <button
               onClick={() => setSingleAddModal({ open: false, type: '', value: '' })}
@@ -1687,7 +1570,7 @@ function App() {
               onClick={handleSingleAdd}
               style={{
                 padding: '8px 16px',
-                background: '#10b981',
+                background: '#3b82f6',
                 color: 'white',
                 border: 'none',
                 borderRadius: '8px',
@@ -1854,8 +1737,6 @@ function App() {
             </h1>
             <p style={{ fontSize: '14px', color: '#64748b' }}>
               {selectedMonth} {selectedYear}
-              {isSaving && !isYTD && <span style={{ fontSize: '11px', color: '#f59e0b', marginLeft: '8px' }}>💾 Saving...</span>}
-              {!isSaving && lastSaved && !isYTD && <span style={{ fontSize: '11px', color: '#10b981', marginLeft: '8px' }}>✓ Saved at {lastSaved}</span>}
               {isYTD && <span style={{ fontSize: '11px', color: '#475569', marginLeft: '8px' }}>YTD view • rows are read-only</span>}
               <span style={{ fontSize: '11px', color: '#3b82f6', marginLeft: '8px' }}>🌐 Multi-user enabled</span>
               <span style={{ 
@@ -2031,12 +1912,32 @@ function App() {
 
             <input ref={fileInputRef} type="file" accept=".xlsx" onChange={onImportFileChange} style={{ display: 'none' }} />
             
+            <input ref={monthFileInputRef} type="file" accept=".xlsx" onChange={onImportMonthFileChange} style={{ display: 'none' }} />
+            
             <input ref={jsonFileInputRef} type="file" accept=".json" onChange={handleImportCitiesJSON} style={{ display: 'none' }} />
             
             <input ref={jsonClientsInputRef} type="file" accept=".json" onChange={handleImportClientsJSON} style={{ display: 'none' }} />
             
             <button onClick={onClickImport} disabled={isImporting} style={{ padding: '8px 12px', background: isImporting ? '#9ca3af' : '#312e81', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: isImporting ? 'not-allowed' : 'pointer' }}>
               {isImporting ? '⏳ Importing…' : '⬆️ Import All (Excel)'}
+            </button>
+
+            <button 
+              onClick={onClickImportMonth} 
+              disabled={isImporting} 
+              style={{ 
+                padding: '8px 12px', 
+                background: isImporting ? '#9ca3af' : '#4c1d95', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '8px', 
+                fontSize: '13px', 
+                fontWeight: '600', 
+                cursor: isImporting ? 'not-allowed' : 'pointer' 
+              }}
+              title={`Import data for ${isYTD ? editTargetMonth : selectedMonth} only`}
+            >
+              {isImporting ? '⏳ Importing…' : `⬆️ Import ${isYTD ? editTargetMonth : selectedMonth} (Excel)`}
             </button>
             
             <button onClick={() => setStatusEnabled(!statusEnabled)} style={{ padding: '8px 16px', background: statusEnabled ? '#10b981' : '#64748b', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }} title={statusEnabled ? 'Click to hide statistics' : 'Click to show statistics'}>
@@ -2122,168 +2023,175 @@ function App() {
                   <th onClick={() => handleSort('agent')} style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>
                     AGENT{getSortIcon('agent')}
                   </th>
-                  <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>ACTION</th>
+                  <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>
+                    ACTION
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {sortedShipments.length > 0 ? (
-                  sortedShipments.map((shipment, idx) => {
-                    const originalIndex = shipments.findIndex(s => s.id === shipment.id);
-                    return (
-                      <tr key={shipment.id} style={{ background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
-                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'refNum', shipment.refNum)}</td>
-                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'client', shipment.client || '')}</td>
-                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'shipDate', shipment.shipDate)}</td>
-                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'returnDate', shipment.returnDate)}</td>
-                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'location', shipment.location)}</td>
-                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'returnLocation', shipment.returnLocation)}</td>
-                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'city', shipment.city || '')}</td>
-                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'state', shipment.state || '')}</td>
-                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'company', shipment.company)}</td>
-                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'shipMethod', shipment.shipMethod)}</td>
-                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'vehicleType', shipment.vehicleType)}</td>
-                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'shippingCharge', shipment.shippingCharge)}</td>
-                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'po', shipment.po)}</td>
-                        <td style={{ border: '1px solid #cbd5e1', padding: 0 }}>{renderCell(originalIndex, 'agent', shipment.agent)}</td>
-                        <td style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'center' }}>
-                          <button
-                            onClick={() => handleDeleteRow(originalIndex)}
-                            disabled={isYTD}
-                            style={{ color: isYTD ? '#94a3b8' : '#dc2626', background: 'none', border: 'none', cursor: isYTD ? 'not-allowed' : 'pointer', fontSize: '16px' }}
-                            title={isYTD ? 'YTD view: delete disabled' : 'Delete'}
-                          >
-                            🗑️
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan="15" style={{ border: '1px solid #cbd5e1', padding: '40px', textAlign: 'center', color: '#64748b', fontSize: '14px' }}>
-                      No shipments for {selectedMonth}. {isYTD ? 'YTD aggregates all months.' : 'Click "Add Row" to start entering data.'}
+                {sortedShipments.map((s, idx) => (
+                  <tr key={idx} style={{ background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'refNum', s.refNum)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'client', s.client)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'shipDate', s.shipDate)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'returnDate', s.returnDate)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'location', s.location)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'returnLocation', s.returnLocation)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'city', s.city)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'state', s.state)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'company', s.company)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'shipMethod', s.shipMethod)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'vehicleType', s.vehicleType)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'shippingCharge', s.shippingCharge)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'po', s.po)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'agent', s.agent)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'center' }}>
+                      <button
+                        onClick={() => handleDeleteRow(idx)}
+                        disabled={isYTD}
+                        style={{
+                          background: isYTD ? '#cbd5e1' : '#ef4444',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '4px 8px',
+                          fontSize: '11px',
+                          cursor: isYTD ? 'not-allowed' : 'pointer',
+                          fontWeight: '600',
+                        }}
+                        title={isYTD ? 'Cannot delete from YTD view' : 'Delete this row'}
+                      >
+                        🗑️ Del
+                      </button>
                     </td>
                   </tr>
-                )}
+                ))}
               </tbody>
             </table>
           </div>
-
-          <div style={{ padding: '16px', background: '#f8fafc', borderTop: '1px solid #cbd5e1', fontSize: '12px', color: '#64748b', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px' }}>
-            <p>
-              <strong>Tips:</strong> {isYTD ? 'YTD rows are read-only • Use "Edit to month" + Add Row to add to a month • ' : ''}
-              Click column headers to sort • Click any cell to edit • Press{' '}
-              <kbd style={{ padding: '2px 6px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '11px' }}>Enter</kbd>
-              {' '}to move down • Press{' '}
-              <kbd style={{ padding: '2px 6px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '11px' }}>Tab</kbd>
-              {' '}to move right • Press{' '}
-              <kbd style={{ padding: '2px 6px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '3px', fontSize: '11px' }}>Esc</kbd>
-              {' '}to cancel • Changes sync in real-time across all users
-            </p>
-          </div>
         </div>
 
-        {/* STATS MOVED TO HERE - BELOW THE SHIPMENT DETAILS TABLE */}
         {statusEnabled && (
           <>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '24px', marginBottom: '24px' }}>
-              <div ref={costPerCompanyRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px' }}>
-                <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '12px', color: '#334155' }}>Shipping Cost Per Company</h3>
-                {companySummary.length > 0 ? (
-                  <table style={{ width: '100%', fontSize: '12px' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                        <th style={{ textAlign: 'left', padding: '4px', fontWeight: '600' }}>Company</th>
-                        <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Total Cost</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {companySummary.map((item, idx) => (
-                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                          <td style={{ padding: '4px' }}>{item.company}</td>
-                          <td style={{ textAlign: 'right', padding: '4px' }}>
-                            ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </td>
+            <div ref={costPerCompanyRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginTop: '24px' }}>
+              <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Cost Per Company</h3>
+              {companySummary.length > 0 ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <table style={{ width: '100%', fontSize: '12px' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                          <th style={{ textAlign: 'left', padding: '4px', fontWeight: '600' }}>Company</th>
+                          <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Total Cost</th>
+                          <th style={{ textAlign: 'right', padding: '4px', fontWeight: '600' }}>Shipments</th>
                         </tr>
-                      ))}
-                      <tr style={{ fontWeight: 'bold', borderTop: '2px solid #cbd5e1' }}>
-                        <td style={{ padding: '4px' }}>Total</td>
-                        <td style={{ textAlign: 'right', padding: '4px' }}>
-                          ${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                ) : (
-                  <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No data for {selectedMonth}</p>
-                )}
-              </div>
-
-              <div ref={shipmentCountRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px' }}>
-                <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Shipment Count by Company</h3>
-                {companySummary.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {companySummary.map((item, idx) => (
-                      <div key={idx}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '11px' }}>
-                          <span style={{ fontWeight: '600', color: '#475569' }}>{item.company}</span>
-                          <span style={{ color: '#64748b' }}>{item.count} shipments</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div style={{ flex: 1, height: '28px', background: '#f1f5f9', borderRadius: '6px', overflow: 'hidden' }}>
-                            <div
-                              style={{
-                                width: `${(item.count / maxCount) * 100}%`,
-                                height: '100%',
-                                background: chartColors[idx % chartColors.length],
-                                borderRadius: '6px',
-                                transition: 'width 0.3s ease',
-                                boxShadow: `0 0 10px ${chartColors[idx % chartColors.length]}40`,
-                              }}
-                            />
-                          </div>
-                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155', minWidth: '30px', textAlign: 'right' }}>{item.count}</span>
-                        </div>
-                      </div>
-                    ))}
+                      </thead>
+                      <tbody>
+                        {companySummary.map((item, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
+                            <td style={{ padding: '4px' }}>{item.company}</td>
+                            <td style={{ textAlign: 'right', padding: '4px' }}>
+                              ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td style={{ textAlign: 'right', padding: '4px' }}>{item.count}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                ) : (
-                  <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No data for {selectedMonth}</p>
-                )}
-              </div>
+
+                  <div>
+                    <h4 style={{ fontSize: '12px', fontWeight: '600', marginBottom: '12px', color: '#475569' }}>Cost Distribution</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {companySummary.map((item, idx) => (
+                        <div key={idx}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', fontSize: '10px' }}>
+                            <span style={{ fontWeight: '600', color: '#475569' }}>{item.company}</span>
+                            <span style={{ color: '#64748b' }}>
+                              ${item.total.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <div style={{ flex: 1, height: '20px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                              <div
+                                style={{
+                                  width: `${(item.total / totalCost) * 100}%`,
+                                  height: '100%',
+                                  background: chartColors[idx % chartColors.length],
+                                  borderRadius: '4px',
+                                  transition: 'width 0.3s ease',
+                                }}
+                              />
+                            </div>
+                            <span style={{ fontSize: '10px', color: '#64748b', minWidth: '40px', textAlign: 'right' }}>
+                              {((item.total / totalCost) * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No data for {selectedMonth}</p>
+              )}
             </div>
 
-            <div ref={revenueDistRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
-              <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Revenue Distribution by Company</h3>
+            <div ref={shipmentCountRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginTop: '24px' }}>
+              <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Shipment Count by Company</h3>
               {companySummary.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {companySummary.map((item, idx) => (
                     <div key={idx}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '11px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px', fontSize: '10px' }}>
                         <span style={{ fontWeight: '600', color: '#475569' }}>{item.company}</span>
-                        <span style={{ color: '#64748b' }}>{totalCost > 0 ? ((item.total / totalCost) * 100).toFixed(1) : '0.0'}%</span>
+                        <span style={{ color: '#64748b' }}>{item.count}</span>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ flex: 1, height: '32px', background: '#f1f5f9', borderRadius: '8px', overflow: 'hidden' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <div style={{ flex: 1, height: '20px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
                           <div
                             style={{
-                              width: `${totalCost > 0 ? (item.total / totalCost) * 100 : 0}%`,
+                              width: `${(item.count / maxCount) * 100}%`,
                               height: '100%',
-                              background: `linear-gradient(90deg, ${chartColors[idx % chartColors.length]}, ${chartColors[idx % chartColors.length]}dd)`,
-                              display: 'flex',
-                              alignItems: 'center',
-                              paddingRight: '12px',
-                              justifyContent: 'flex-end',
-                              color: 'white',
-                              fontSize: '11px',
-                              fontWeight: 'bold',
-                              transition: 'width 0.5s ease',
-                              borderRadius: '8px',
+                              background: chartColors[idx % chartColors.length],
+                              borderRadius: '4px',
+                              transition: 'width 0.3s ease',
                             }}
-                          >
-                            ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </div>
+                          />
                         </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ fontSize: '13px', color: '#64748b', textAlign: 'center', padding: '20px' }}>No data for {selectedMonth}</p>
+              )}
+            </div>
+
+            <div ref={revenueDistRef} style={{ background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '16px', marginTop: '24px' }}>
+              <h3 style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '16px', color: '#334155' }}>Revenue Distribution</h3>
+              {companySummary.length > 0 ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', justifyContent: 'center' }}>
+                  {companySummary.map((item, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '12px 16px',
+                        background: chartColors[idx % chartColors.length],
+                        color: 'white',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                        minWidth: '140px',
+                        textAlign: 'center',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      }}
+                    >
+                      <div style={{ fontWeight: '600', marginBottom: '4px' }}>{item.company}</div>
+                      <div style={{ fontSize: '16px', fontWeight: 'bold' }}>
+                        ${item.total.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </div>
+                      <div style={{ fontSize: '10px', opacity: 0.9, marginTop: '2px' }}>
+                        {((item.total / totalCost) * 100).toFixed(1)}%
                       </div>
                     </div>
                   ))}
