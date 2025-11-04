@@ -161,6 +161,7 @@ function App() {
 
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [statusEnabled, setStatusEnabled] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const costPerCompanyRef = useRef(null);
   const clientStatsRef = useRef(null);
@@ -1337,9 +1338,32 @@ if (statsWereHidden) {
   };
 
   const sortedShipments = React.useMemo(() => {
-    if (!sortConfig.key) return shipments;
+    // First filter by search query
+    let filtered = shipments;
+    
+    if (searchQuery.trim() !== '') {
+      const query = searchQuery.toLowerCase();
+      filtered = shipments.filter((shipment) => {
+        return (
+          (shipment.refNum && String(shipment.refNum).toLowerCase().includes(query)) ||
+          (shipment.client && String(shipment.client).toLowerCase().includes(query)) ||
+          (shipment.company && String(shipment.company).toLowerCase().includes(query)) ||
+          (shipment.city && String(shipment.city).toLowerCase().includes(query)) ||
+          (shipment.state && String(shipment.state).toLowerCase().includes(query)) ||
+          (shipment.agent && String(shipment.agent).toLowerCase().includes(query)) ||
+          (shipment.location && String(shipment.location).toLowerCase().includes(query)) ||
+          (shipment.returnLocation && String(shipment.returnLocation).toLowerCase().includes(query)) ||
+          (shipment.po && String(shipment.po).toLowerCase().includes(query)) ||
+          (shipment.shipMethod && String(shipment.shipMethod).toLowerCase().includes(query)) ||
+          (shipment.vehicleType && String(shipment.vehicleType).toLowerCase().includes(query))
+        );
+      });
+    }
 
-    const sorted = [...shipments].sort((a, b) => {
+    // Then apply sorting
+    if (!sortConfig.key) return filtered;
+
+    const sorted = [...filtered].sort((a, b) => {
       const aVal = a[sortConfig.key] ?? '';
       const bVal = b[sortConfig.key] ?? '';
 
@@ -1372,7 +1396,7 @@ if (statsWereHidden) {
     });
 
     return sorted;
-  }, [shipments, sortConfig]);
+  }, [shipments, sortConfig, searchQuery]);
 
   const getSortIcon = (columnKey) => {
     if (sortConfig.key !== columnKey) {
@@ -1975,6 +1999,50 @@ if (statsWereHidden) {
             >
               + Add Row{isYTD ? ` to ${editTargetMonth}` : ''}
             </button>
+          </div>
+
+          <div style={{ padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #cbd5e1' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '20px' }}>🔍</span>
+              <input
+                type="text"
+                placeholder="Search shipments (reference #, client, company, city, state, agent, location, PO, etc.)"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  outline: 'none',
+                  transition: 'border-color 0.2s',
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  style={{
+                    padding: '8px 12px',
+                    background: '#ef4444',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                  }}
+                  title="Clear search"
+                >
+                  ✕ Clear
+                </button>
+              )}
+              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600' }}>
+                {sortedShipments.length} of {shipments.length} rows
+              </div>
+            </div>
           </div>
 
           <div style={{ overflowX: 'auto', height: 'calc(100vh - 400px)', overflowY: 'auto' }}>
