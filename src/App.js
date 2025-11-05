@@ -163,6 +163,7 @@ function App() {
   const [statusEnabled, setStatusEnabled] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [saveStatus, setSaveStatus] = useState('saved'); // 'saved', 'saving', 'error'
+  const [unsavedRows, setUnsavedRows] = useState(new Set()); // Track row indices that need saving
 
   const costPerCompanyRef = useRef(null);
   const clientStatsRef = useRef(null);
@@ -231,6 +232,7 @@ function App() {
           }
         }
         setShipments(allShipments);
+        setUnsavedRows(new Set()); // Clear unsaved tracking for YTD
       };
       loadYtd();
     } else {
@@ -241,54 +243,13 @@ function App() {
         } else {
           setShipments([]);
         }
+        setUnsavedRows(new Set()); // Clear unsaved tracking when loading new data
       });
       return () => unsub();
     }
   }, [selectedYear, selectedMonth, isYTD]);
 
-  // Auto-save only when NEW entries are added (not on edits)
-  const previousLengthRef = useRef(shipments.length);
-  
-  useEffect(() => {
-    if (isYTD) return;
-    
-    const currentLength = shipments.length;
-    const previousLength = previousLengthRef.current;
-    const isNewEntry = currentLength > previousLength;
-    
-    // Only auto-save if a new entry was added
-    if (!isNewEntry) {
-      previousLengthRef.current = currentLength;
-      return;
-    }
-    
-    let timeoutId;
-    const saveData = async () => {
-      setSaveStatus('saving');
-      try {
-        await setDoc(monthDocRef(selectedYear, selectedMonth), {
-          shipments,
-          lastModified: new Date().toISOString(),
-          month: selectedMonth,
-          year: selectedYear,
-        });
-        console.log('✅ Auto-saved NEW entry:', selectedMonth, selectedYear, '|', shipments.length, 'rows');
-        setSaveStatus('saved');
-      } catch (err) {
-        console.error('❌ Auto-save failed:', err);
-        setSaveStatus('error');
-        if (err.code === 'resource-exhausted') {
-          alert('⚠️ Firebase quota exceeded. Your changes are saved locally but may not sync. Please try again later or upgrade your Firebase plan.');
-        }
-      }
-    };
-    
-    // Save immediately when new entry added (no delay)
-    timeoutId = setTimeout(saveData, 500);
-    
-    previousLengthRef.current = currentLength;
-    return () => clearTimeout(timeoutId);
-  }, [shipments, selectedYear, selectedMonth, isYTD]);
+  // No auto-save - users save individual rows manually
 
   // Manual save function
   const handleManualSave = async () => {
@@ -307,12 +268,46 @@ function App() {
       });
       console.log('✅ Manual save:', selectedMonth, selectedYear, '|', shipments.length, 'rows');
       setSaveStatus('saved');
+      setUnsavedRows(new Set()); // Clear all unsaved markers
       alert('✅ Data saved successfully!');
     } catch (err) {
       console.error('❌ Manual save failed:', err);
       setSaveStatus('error');
       if (err.code === 'resource-exhausted') {
         alert('⚠️ Firebase quota exceeded. Please try again later or upgrade your Firebase plan.');
+      } else {
+        alert('❌ Save failed: ' + err.message);
+      }
+    }
+  };
+
+  // Save individual row
+  const handleSaveRow = async (rowIndex) => {
+    if (isYTD) return;
+    
+    try {
+      await setDoc(monthDocRef(selectedYear, selectedMonth), {
+        shipments,
+        lastModified: new Date().toISOString(),
+        month: selectedMonth,
+        year: selectedYear,
+      });
+      console.log('✅ Row saved:', rowIndex, selectedMonth, selectedYear);
+      
+      // Remove this row from unsaved set
+      setUnsavedRows(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(rowIndex);
+        return newSet;
+      });
+      
+      // Show brief success indicator
+      setSaveStatus('saved');
+    } catch (err) {
+      console.error('❌ Row save failed:', err);
+      setSaveStatus('error');
+      if (err.code === 'resource-exhausted') {
+        alert('⚠️ Firebase quota exceeded. Please try again later.');
       } else {
         alert('❌ Save failed: ' + err.message);
       }
@@ -329,34 +324,45 @@ function App() {
     const yearChanged = previousYearRef.current !== selectedYear;
     
     if ((monthChanged || yearChanged) && !isYTD && previousShipmentsRef.current.length > 0) {
-      // Save the previous month's data before switching
-      const savePrevious = async () => {
-        try {
-          await setDoc(monthDocRef(previousYearRef.current, previousMonthRef.current), {
-            shipments: previousShipmentsRef.current,
-            lastModified: new Date().toISOString(),
-            month: previousMonthRef.current,
-            year: previousYearRef.current,
-          });
-          console.log('✅ Saved before switching:', previousMonthRef.current, previousYearRef.current);
-        } catch (err) {
-          console.error('❌ Save before switch failed:', err);
-          if (err.code === 'resource-exhausted') {
-            console.warn('⚠️ Quota exceeded during month switch - data may not be saved');
-          }
+      // Check if there are unsaved changes
+      if (unsavedRows.size > 0) {
+        const confirmSwitch = window.confirm(
+          `You have ${unsavedRows.size} unsaved row(s). Do you want to save before switching to ${selectedMonth} ${selectedYear}?`
+        );
+        
+        if (confirmSwitch) {
+          // Save before switching
+          const savePrevious = async () => {
+            try {
+              await setDoc(monthDocRef(previousYearRef.current, previousMonthRef.current), {
+                shipments: previousShipmentsRef.current,
+                lastModified: new Date().toISOString(),
+                month: previousMonthRef.current,
+                year: previousYearRef.current,
+              });
+              console.log('✅ Saved before switching:', previousMonthRef.current, previousYearRef.current);
+              setUnsavedRows(new Set()); // Clear unsaved after saving
+            } catch (err) {
+              console.error('❌ Save before switch failed:', err);
+              if (err.code === 'resource-exhausted') {
+                alert('⚠️ Quota exceeded - changes may not be saved');
+              }
+            }
+          };
+          savePrevious();
         }
-      };
-      savePrevious();
+      }
     }
 
     previousMonthRef.current = selectedMonth;
     previousYearRef.current = selectedYear;
     previousShipmentsRef.current = shipments;
-  }, [selectedMonth, selectedYear, shipments, isYTD]);
+  }, [selectedMonth, selectedYear, shipments, isYTD, unsavedRows]);
 
   const handleMonthChange = (newMonth) => {
     setEditingCell(null);
     setSelectedMonth(newMonth);
+    setUnsavedRows(new Set()); // Clear unsaved tracking when switching months
   };
 
   const handleAddRow = async () => {
@@ -389,7 +395,10 @@ function App() {
       });
       alert(`Row added to ${targetMonth} ${selectedYear}. Switch to that month to edit.`);
     } else {
-      setShipments([newRow, ...shipments]);
+      const newShipments = [newRow, ...shipments];
+      setShipments(newShipments);
+      // Mark row 0 (the new row) as unsaved
+      setUnsavedRows(prev => new Set(prev).add(0));
     }
   };
 
@@ -401,6 +410,20 @@ function App() {
     }
     const updated = shipments.filter((_, i) => i !== rowIndex);
     setShipments(updated);
+    
+    // Remove from unsaved set and adjust indices of rows after this one
+    setUnsavedRows(prev => {
+      const newSet = new Set();
+      prev.forEach(idx => {
+        if (idx < rowIndex) {
+          newSet.add(idx); // Rows before deleted row keep same index
+        } else if (idx > rowIndex) {
+          newSet.add(idx - 1); // Rows after deleted row shift down by 1
+        }
+        // If idx === rowIndex, we skip it (it's being deleted)
+      });
+      return newSet;
+    });
   };
 
   const startEditCell = (rowIndex, field, currentValue) => {
@@ -487,6 +510,10 @@ function App() {
 
     updatedShipments[rowIndex][field] = finalValue;
     setShipments(updatedShipments);
+    
+    // Mark this row as unsaved
+    setUnsavedRows(prev => new Set(prev).add(rowIndex));
+    
     setEditingCell(null);
     setShowDropdown(false);
   };
@@ -1851,21 +1878,32 @@ if (statsWereHidden) {
             <p style={{ fontSize: '14px', color: '#64748b' }}>
               {selectedMonth} {selectedYear}
               {isYTD && <span style={{ fontSize: '11px', color: '#475569', marginLeft: '8px' }}>YTD view • rows are read-only</span>}
-              {!isYTD && (
+              {!isYTD && unsavedRows.size > 0 && (
                 <span style={{ 
                   fontSize: '11px', 
                   marginLeft: '8px',
                   padding: '2px 8px',
                   borderRadius: '4px',
                   fontWeight: '600',
-                  background: saveStatus === 'saved' ? '#10b981' : saveStatus === 'saving' ? '#f59e0b' : '#ef4444',
+                  background: '#f59e0b',
                   color: 'white'
                 }}
-                title={saveStatus === 'saved' ? 'Auto-saves new entries only. Click "Save Now" after edits.' : ''}
+                title={`${unsavedRows.size} row(s) have unsaved changes`}
                 >
-                  {saveStatus === 'saved' && '✓ New entries auto-save'}
-                  {saveStatus === 'saving' && '💾 Saving...'}
-                  {saveStatus === 'error' && '⚠️ Save Error'}
+                  ⚠️ {unsavedRows.size} unsaved row{unsavedRows.size !== 1 ? 's' : ''}
+                </span>
+              )}
+              {!isYTD && unsavedRows.size === 0 && (
+                <span style={{ 
+                  fontSize: '11px', 
+                  marginLeft: '8px',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  fontWeight: '600',
+                  background: '#10b981',
+                  color: 'white'
+                }}>
+                  ✓ All saved
                 </span>
               )}
               <span style={{ fontSize: '11px', color: '#3b82f6', marginLeft: '8px' }}>🌐 Multi-user enabled</span>
@@ -1904,9 +1942,9 @@ if (statsWereHidden) {
                 alignItems: 'center',
                 gap: '6px'
               }}
-              title={isYTD ? 'Cannot save in YTD view' : 'Save after editing existing rows (new rows auto-save)'}
+              title={isYTD ? 'Cannot save in YTD view' : `Save all rows at once (${unsavedRows.size} unsaved)`}
             >
-              💾 Save Now
+              💾 Save All
             </button>
 
             <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} style={{ padding: '8px 16px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
@@ -2218,14 +2256,19 @@ if (statsWereHidden) {
                   <th onClick={() => handleSort('agent')} style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>
                     AGENT{getSortIcon('agent')}
                   </th>
+                  <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>
+                    SAVE
+                  </th>
                   <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>
                     ACTION
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {sortedShipments.map((s, idx) => (
-                  <tr key={idx} style={{ background: idx % 2 === 0 ? 'white' : '#f8fafc' }}>
+                {sortedShipments.map((s, idx) => {
+                  const isUnsaved = unsavedRows.has(idx);
+                  return (
+                  <tr key={idx} style={{ background: isUnsaved ? '#fef3c7' : (idx % 2 === 0 ? 'white' : '#f8fafc') }}>
                     <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'refNum', s.refNum)}</td>
                     <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'client', s.client)}</td>
                     <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'shipDate', s.shipDate)}</td>
@@ -2240,6 +2283,28 @@ if (statsWereHidden) {
                     <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'shippingCharge', s.shippingCharge)}</td>
                     <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'po', s.po)}</td>
                     <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'agent', s.agent)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'center' }}>
+                      {isUnsaved && !isYTD ? (
+                        <button
+                          onClick={() => handleSaveRow(idx)}
+                          style={{
+                            background: '#10b981',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                          }}
+                          title="Save this row"
+                        >
+                          💾 Save
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: '11px', color: '#64748b' }}>—</span>
+                      )}
+                    </td>
                     <td style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'center' }}>
                       <button
                         onClick={() => handleDeleteRow(idx)}
@@ -2260,7 +2325,8 @@ if (statsWereHidden) {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
