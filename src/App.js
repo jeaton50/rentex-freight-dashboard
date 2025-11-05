@@ -247,8 +247,7 @@ function App() {
 
   // Auto-save when shipments change
   useEffect(() => {
-    if (isYTD) return;
-    
+    if (isYTD || shipments.length === 0) return;
     let timeoutId;
     const saveData = async () => {
       try {
@@ -258,48 +257,13 @@ function App() {
           month: selectedMonth,
           year: selectedYear,
         });
-        console.log('✅ Auto-saved:', selectedMonth, selectedYear, '|', shipments.length, 'rows');
       } catch (err) {
-        console.error('❌ Auto-save failed:', err);
+        console.error('Auto-save failed:', err);
       }
     };
-    
     timeoutId = setTimeout(saveData, 1000);
-    
     return () => clearTimeout(timeoutId);
   }, [shipments, selectedYear, selectedMonth, isYTD]);
-
-  // Save immediately when switching months/years to prevent data loss
-  const previousMonthRef = useRef(selectedMonth);
-  const previousYearRef = useRef(selectedYear);
-  const previousShipmentsRef = useRef(shipments);
-
-  useEffect(() => {
-    const monthChanged = previousMonthRef.current !== selectedMonth;
-    const yearChanged = previousYearRef.current !== selectedYear;
-    
-    if ((monthChanged || yearChanged) && !isYTD && previousShipmentsRef.current.length > 0) {
-      // Save the previous month's data before switching
-      const savePrevious = async () => {
-        try {
-          await setDoc(monthDocRef(previousYearRef.current, previousMonthRef.current), {
-            shipments: previousShipmentsRef.current,
-            lastModified: new Date().toISOString(),
-            month: previousMonthRef.current,
-            year: previousYearRef.current,
-          });
-          console.log('✅ Saved before switching:', previousMonthRef.current, previousYearRef.current);
-        } catch (err) {
-          console.error('❌ Save before switch failed:', err);
-        }
-      };
-      savePrevious();
-    }
-
-    previousMonthRef.current = selectedMonth;
-    previousYearRef.current = selectedYear;
-    previousShipmentsRef.current = shipments;
-  }, [selectedMonth, selectedYear, shipments, isYTD]);
 
   const handleMonthChange = (newMonth) => {
     setEditingCell(null);
@@ -2550,6 +2514,30 @@ if (statsWereHidden) {
 }
 
 export default App;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
