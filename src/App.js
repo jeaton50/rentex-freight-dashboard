@@ -246,9 +246,21 @@ function App() {
     }
   }, [selectedYear, selectedMonth, isYTD]);
 
-  // Auto-save when shipments change (delayed to reduce Firebase quota usage)
+  // Auto-save only when NEW entries are added (not on edits)
+  const previousLengthRef = useRef(shipments.length);
+  
   useEffect(() => {
     if (isYTD) return;
+    
+    const currentLength = shipments.length;
+    const previousLength = previousLengthRef.current;
+    const isNewEntry = currentLength > previousLength;
+    
+    // Only auto-save if a new entry was added
+    if (!isNewEntry) {
+      previousLengthRef.current = currentLength;
+      return;
+    }
     
     let timeoutId;
     const saveData = async () => {
@@ -260,21 +272,21 @@ function App() {
           month: selectedMonth,
           year: selectedYear,
         });
-        console.log('✅ Auto-saved:', selectedMonth, selectedYear, '|', shipments.length, 'rows');
+        console.log('✅ Auto-saved NEW entry:', selectedMonth, selectedYear, '|', shipments.length, 'rows');
         setSaveStatus('saved');
       } catch (err) {
         console.error('❌ Auto-save failed:', err);
         setSaveStatus('error');
-        // Show user-friendly error if quota exceeded
         if (err.code === 'resource-exhausted') {
           alert('⚠️ Firebase quota exceeded. Your changes are saved locally but may not sync. Please try again later or upgrade your Firebase plan.');
         }
       }
     };
     
-    // Increased from 1s to 5s to reduce Firebase writes
-    timeoutId = setTimeout(saveData, 5000);
+    // Save immediately when new entry added (no delay)
+    timeoutId = setTimeout(saveData, 500);
     
+    previousLengthRef.current = currentLength;
     return () => clearTimeout(timeoutId);
   }, [shipments, selectedYear, selectedMonth, isYTD]);
 
@@ -1848,8 +1860,10 @@ if (statsWereHidden) {
                   fontWeight: '600',
                   background: saveStatus === 'saved' ? '#10b981' : saveStatus === 'saving' ? '#f59e0b' : '#ef4444',
                   color: 'white'
-                }}>
-                  {saveStatus === 'saved' && '✓ Auto-save On'}
+                }}
+                title={saveStatus === 'saved' ? 'Auto-saves new entries only. Click "Save Now" after edits.' : ''}
+                >
+                  {saveStatus === 'saved' && '✓ New entries auto-save'}
                   {saveStatus === 'saving' && '💾 Saving...'}
                   {saveStatus === 'error' && '⚠️ Save Error'}
                 </span>
@@ -1890,7 +1904,7 @@ if (statsWereHidden) {
                 alignItems: 'center',
                 gap: '6px'
               }}
-              title={isYTD ? 'Cannot save in YTD view' : 'Manually save current data'}
+              title={isYTD ? 'Cannot save in YTD view' : 'Save after editing existing rows (new rows auto-save)'}
             >
               💾 Save Now
             </button>
