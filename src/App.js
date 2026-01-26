@@ -411,19 +411,24 @@ function App() {
     const updated = shipments.filter((_, i) => i !== rowIndex);
     setShipments(updated);
     
-    // Remove from unsaved set and adjust indices of rows after this one
-    setUnsavedRows(prev => {
-      const newSet = new Set();
-      prev.forEach(idx => {
-        if (idx < rowIndex) {
-          newSet.add(idx); // Rows before deleted row keep same index
-        } else if (idx > rowIndex) {
-          newSet.add(idx - 1); // Rows after deleted row shift down by 1
-        }
-        // If idx === rowIndex, we skip it (it's being deleted)
+    // Save immediately to persist deletion
+    try {
+      await setDoc(monthDocRef(selectedYear, selectedMonth), {
+        shipments: updated,
+        lastModified: new Date().toISOString(),
+        month: selectedMonth,
+        year: selectedYear,
       });
-      return newSet;
-    });
+      console.log('✅ Row deleted and saved:', rowIndex, selectedMonth, selectedYear);
+      setUnsavedRows(new Set()); // Clear unsaved tracking as we just saved everything
+    } catch (err) {
+      console.error('❌ Delete failed:', err);
+      if (err.code === 'resource-exhausted') {
+        alert('⚠️ Firebase quota exceeded. Delete not saved.');
+      } else {
+        alert('❌ Delete save failed: ' + err.message);
+      }
+    }
   };
 
   const startEditCell = (rowIndex, field, currentValue) => {
