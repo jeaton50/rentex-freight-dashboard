@@ -1459,12 +1459,13 @@ if (statsWereHidden) {
   };
 
   const sortedShipments = React.useMemo(() => {
+    // Track original indices so delete/edit works correctly after sort/filter
+    let indexed = shipments.map((shipment, originalIndex) => ({ ...shipment, _originalIndex: originalIndex }));
+
     // First filter by search query
-    let filtered = shipments;
-    
     if (searchQuery.trim() !== '') {
       const query = searchQuery.toLowerCase();
-      filtered = shipments.filter((shipment) => {
+      indexed = indexed.filter((shipment) => {
         return (
           (shipment.refNum && String(shipment.refNum).toLowerCase().includes(query)) ||
           (shipment.client && String(shipment.client).toLowerCase().includes(query)) ||
@@ -1482,9 +1483,9 @@ if (statsWereHidden) {
     }
 
     // Then apply sorting
-    if (!sortConfig.key) return filtered;
+    if (!sortConfig.key) return indexed;
 
-    const sorted = [...filtered].sort((a, b) => {
+    const sorted = [...indexed].sort((a, b) => {
       const aVal = a[sortConfig.key] ?? '';
       const bVal = b[sortConfig.key] ?? '';
 
@@ -1497,11 +1498,11 @@ if (statsWereHidden) {
       if (sortConfig.key === 'shipDate' || sortConfig.key === 'returnDate') {
         const aIsBlank = !aVal || aVal === '';
         const bIsBlank = !bVal || bVal === '';
-        
+
         if (aIsBlank && bIsBlank) return 0;
         if (aIsBlank) return sortConfig.direction === 'asc' ? -1 : 1;
         if (bIsBlank) return sortConfig.direction === 'asc' ? 1 : -1;
-        
+
         const aDate = new Date(aVal).getTime();
         const bDate = new Date(bVal).getTime();
         return sortConfig.direction === 'asc' ? aDate - bDate : bDate - aDate;
@@ -2271,27 +2272,28 @@ if (statsWereHidden) {
               </thead>
               <tbody>
                 {sortedShipments.map((s, idx) => {
-                  const isUnsaved = unsavedRows.has(idx);
+                  const originalIdx = s._originalIndex;
+                  const isUnsaved = unsavedRows.has(originalIdx);
                   return (
-                  <tr key={idx} style={{ background: isUnsaved ? '#fef3c7' : (idx % 2 === 0 ? 'white' : '#f8fafc') }}>
-                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'refNum', s.refNum)}</td>
-                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'client', s.client)}</td>
-                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'shipDate', s.shipDate)}</td>
-                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'returnDate', s.returnDate)}</td>
-                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'location', s.location)}</td>
-                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'returnLocation', s.returnLocation)}</td>
-                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'city', s.city)}</td>
-                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'state', s.state)}</td>
-                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'company', s.company)}</td>
-                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'shipMethod', s.shipMethod)}</td>
-                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'vehicleType', s.vehicleType)}</td>
-                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'shippingCharge', s.shippingCharge)}</td>
-                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'po', s.po)}</td>
-                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(idx, 'agent', s.agent)}</td>
+                  <tr key={originalIdx} style={{ background: isUnsaved ? '#fef3c7' : (idx % 2 === 0 ? 'white' : '#f8fafc') }}>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(originalIdx, 'refNum', s.refNum)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(originalIdx, 'client', s.client)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(originalIdx, 'shipDate', s.shipDate)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(originalIdx, 'returnDate', s.returnDate)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(originalIdx, 'location', s.location)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(originalIdx, 'returnLocation', s.returnLocation)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(originalIdx, 'city', s.city)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(originalIdx, 'state', s.state)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(originalIdx, 'company', s.company)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(originalIdx, 'shipMethod', s.shipMethod)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(originalIdx, 'vehicleType', s.vehicleType)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(originalIdx, 'shippingCharge', s.shippingCharge)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(originalIdx, 'po', s.po)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(originalIdx, 'agent', s.agent)}</td>
                     <td style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'center' }}>
                       {isUnsaved && !isYTD ? (
                         <button
-                          onClick={() => handleSaveRow(idx)}
+                          onClick={() => handleSaveRow(originalIdx)}
                           style={{
                             background: '#10b981',
                             color: 'white',
@@ -2312,7 +2314,7 @@ if (statsWereHidden) {
                     </td>
                     <td style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'center' }}>
                       <button
-                        onClick={() => handleDeleteRow(idx)}
+                        onClick={() => handleDeleteRow(originalIdx)}
                         disabled={isYTD}
                         style={{
                           background: isYTD ? '#cbd5e1' : '#ef4444',
