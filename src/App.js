@@ -142,6 +142,8 @@ function App() {
   const [clients, setClients] = useState([]);
   const [bulkAddModal, setBulkAddModal] = useState({ open: false, type: '', items: '' });
   const [singleAddModal, setSingleAddModal] = useState({ open: false, type: '', value: '' });
+  const [notesModal, setNotesModal] = useState({ open: false, rowIndex: null, text: '' });
+  const [isSavingNote, setIsSavingNote] = useState(false);
   const [shipments, setShipments] = useState([]);
 
   const [editingCell, setEditingCell] = useState(null);
@@ -382,6 +384,7 @@ function App() {
       shippingCharge: 0,
       po: '',
       agent: '',
+      notes: '',
     };
     if (isYTD) {
       const snap = await getDoc(monthDocRef(selectedYear, targetMonth));
@@ -428,6 +431,50 @@ function App() {
       } else {
         alert('❌ Delete save failed: ' + err.message);
       }
+    }
+  };
+
+  // ---------- Notes pop-up ----------
+  const openNotesModal = (rowIndex) => {
+    setEditingCell(null);
+    setNotesModal({ open: true, rowIndex, text: shipments[rowIndex]?.notes ?? '' });
+  };
+
+  const closeNotesModal = () => {
+    setNotesModal({ open: false, rowIndex: null, text: '' });
+  };
+
+  const handleSaveNote = async () => {
+    if (isYTD) return;
+    const { rowIndex, text } = notesModal;
+    if (rowIndex == null || !shipments[rowIndex]) return;
+
+    const updated = shipments.map((s, i) => (i === rowIndex ? { ...s, notes: text } : s));
+    setShipments(updated);
+    setIsSavingNote(true);
+
+    // Save straight away so notes aren't lost if the user forgets to hit Save.
+    try {
+      await setDoc(monthDocRef(selectedYear, selectedMonth), {
+        shipments: updated,
+        lastModified: new Date().toISOString(),
+        month: selectedMonth,
+        year: selectedYear,
+      });
+      setUnsavedRows(new Set()); // whole month was just written
+      setSaveStatus('saved');
+      closeNotesModal();
+    } catch (err) {
+      console.error('❌ Note save failed:', err);
+      setSaveStatus('error');
+      setUnsavedRows(prev => new Set(prev).add(rowIndex));
+      if (err.code === 'resource-exhausted') {
+        alert('⚠️ Firebase quota exceeded. Note kept locally — use Save to retry.');
+      } else {
+        alert('❌ Note save failed: ' + err.message);
+      }
+    } finally {
+      setIsSavingNote(false);
     }
   };
 
@@ -893,6 +940,7 @@ function App() {
     { header: 'Charges', key: 'shippingCharge' },
     { header: 'PO', key: 'po' },
     { header: 'Agent', key: 'agent' },
+    { header: 'Notes', key: 'notes' },
   ];
 
   const mapRowsForExcel = (rows) =>
@@ -911,7 +959,18 @@ function App() {
       shippingCharge: Number(s.shippingCharge || 0),
       po: s.po ?? '',
       agent: s.agent ?? '',
+      notes: s.notes ?? '',
     }));
+
+  // Notes can be long: give the column a fixed width and wrap text instead of autosizing.
+  const formatNotesColumn = (sheet) => {
+    const col = sheet.getColumn('notes');
+    col.width = 50;
+    col.eachCell({ includeEmpty: false }, (cell, rowNumber) => {
+      if (rowNumber === 1) return;
+      cell.alignment = { wrapText: true, vertical: 'top' };
+    });
+  };
 
   const buildDataSheetPretty = (wb, title, rows) => {
     const safeTitle = title.slice(0, 31);
@@ -924,6 +983,7 @@ function App() {
     rows.forEach((r) => sheet.addRow(r));
     sheet.getColumn('shippingCharge').numFmt = '$#,##0.00';
     autosizeColumns(sheet, { min: 10, max: 40, buffer: 2 });
+    formatNotesColumn(sheet);
 
     return sheet;
   };
@@ -948,6 +1008,7 @@ function App() {
       { header: 'Charges', key: 'shippingCharge' },
       { header: 'PO', key: 'po' },
       { header: 'Agent', key: 'agent' },
+      { header: 'Notes', key: 'notes' },
     ];
 
     sheet.getRow(1).font = { bold: true };
@@ -962,6 +1023,7 @@ function App() {
 
     sheet.getColumn('shippingCharge').numFmt = '$#,##0.00';
     autosizeColumns(sheet, { min: 10, max: 40, buffer: 2 });
+    formatNotesColumn(sheet);
 
     return sheet;
   };
@@ -1139,7 +1201,8 @@ if (statsWereHidden) {
     const idxToKey = {};
     headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
       const headerText = (cell.value || '').toString().toLowerCase().trim();
-      if (headerText.includes('reference')) idxToKey[colNumber] = 'refNum';
+      if (headerText.includes('note')) idxToKey[colNumber] = 'notes';
+      else if (headerText.includes('reference')) idxToKey[colNumber] = 'refNum';
       else if (headerText.includes('client')) idxToKey[colNumber] = 'client';
       else if (headerText.includes('ship date')) idxToKey[colNumber] = 'shipDate';
       else if (headerText.includes('return date')) idxToKey[colNumber] = 'returnDate';
@@ -1172,6 +1235,7 @@ if (statsWereHidden) {
         shippingCharge: 0,
         po: '',
         agent: '',
+        notes: '',
       };
 
       row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
@@ -1215,6 +1279,13 @@ if (statsWereHidden) {
             // leave uppercase 2 letters; allow non-standard if needed
           }
           s.state = v;
+        } else if (key === 'notes') {
+          // Wrapped/formatted cells can come back as rich text objects
+          if (val && typeof val === 'object' && Array.isArray(val.richText)) {
+            s.notes = val.richText.map(rt => rt.text).join('');
+          } else {
+            s.notes = val == null ? '' : String(val);
+          }
         } else {
           s[key] = val == null ? '' : String(val);
         }
@@ -1477,7 +1548,8 @@ if (statsWereHidden) {
           (shipment.returnLocation && String(shipment.returnLocation).toLowerCase().includes(query)) ||
           (shipment.po && String(shipment.po).toLowerCase().includes(query)) ||
           (shipment.shipMethod && String(shipment.shipMethod).toLowerCase().includes(query)) ||
-          (shipment.vehicleType && String(shipment.vehicleType).toLowerCase().includes(query))
+          (shipment.vehicleType && String(shipment.vehicleType).toLowerCase().includes(query)) ||
+          (shipment.notes && String(shipment.notes).toLowerCase().includes(query))
         );
       });
     }
@@ -1852,6 +1924,130 @@ if (statsWereHidden) {
     );
   };
   
+  const renderNotesModal = () => {
+    if (!notesModal.open) return null;
+    const row = shipments[notesModal.rowIndex] || {};
+    const readOnly = isYTD;
+    const subtitle = [row.refNum && `Ref # ${row.refNum}`, row.client, row.company]
+      .filter(Boolean)
+      .join(' • ');
+
+    return createPortal(
+      <div
+        role="dialog" aria-modal="true"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          isolation: 'isolate',
+        }}
+        onClick={closeNotesModal}
+      >
+        <div
+          style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '24px',
+            width: '90%',
+            maxWidth: '560px',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+            isolation: 'isolate',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '4px', color: '#1e293b' }}>
+            📝 Shipment Notes
+          </h3>
+          <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '16px' }}>
+            {subtitle || 'New shipment'}
+            {readOnly && ' • read-only in YTD view'}
+          </p>
+
+          <textarea
+            dir="ltr"
+            value={notesModal.text}
+            onChange={(e) => setNotesModal(prev => ({ ...prev, text: e.target.value }))}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                closeNotesModal();
+              } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !readOnly) {
+                e.preventDefault();
+                handleSaveNote();
+              }
+            }}
+            readOnly={readOnly}
+            placeholder="Type notes for this shipment…"
+            style={{
+              width: '100%',
+              height: '200px',
+              padding: '12px',
+              border: '1px solid #cbd5e1',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontFamily: 'Arial, sans-serif',
+              marginBottom: '8px',
+              boxSizing: 'border-box',
+              resize: 'vertical',
+              lineHeight: 1.4,
+              background: readOnly ? '#f8fafc' : 'white',
+            }}
+            autoFocus
+          />
+          {!readOnly && (
+            <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '16px' }}>
+              Ctrl+Enter to save • Esc to cancel
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <button
+              onClick={closeNotesModal}
+              style={{
+                padding: '8px 16px',
+                background: '#e2e8f0',
+                color: '#475569',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+              }}
+            >
+              {readOnly ? 'Close' : 'Cancel'}
+            </button>
+            {!readOnly && (
+              <button
+                onClick={handleSaveNote}
+                disabled={isSavingNote}
+                style={{
+                  padding: '8px 16px',
+                  background: isSavingNote ? '#9ca3af' : '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: isSavingNote ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isSavingNote ? 'Saving…' : 'Save Note'}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>,
+      document.body
+    );
+  };
+
   if (!isAuthenticated) {
     return <PasswordLogin onLogin={handleLogin} />;
   }
@@ -2262,6 +2458,9 @@ if (statsWereHidden) {
                   <th onClick={() => handleSort('agent')} style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>
                     AGENT{getSortIcon('agent')}
                   </th>
+                  <th onClick={() => handleSort('notes')} style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'left', fontSize: '12px', fontWeight: 'bold', color: '#334155', cursor: 'pointer', userSelect: 'none' }}>
+                    NOTES{getSortIcon('notes')}
+                  </th>
                   <th style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'center', fontSize: '12px', fontWeight: 'bold', color: '#334155' }}>
                     SAVE
                   </th>
@@ -2290,6 +2489,44 @@ if (statsWereHidden) {
                     <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(originalIdx, 'shippingCharge', s.shippingCharge)}</td>
                     <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(originalIdx, 'po', s.po)}</td>
                     <td style={{ border: '1px solid #cbd5e1', padding: '0' }}>{renderCell(originalIdx, 'agent', s.agent)}</td>
+                    <td style={{ border: '1px solid #cbd5e1', padding: '4px 8px', maxWidth: '220px' }}>
+                      {s.notes ? (
+                        <div
+                          onClick={() => openNotesModal(originalIdx)}
+                          title={s.notes}
+                          style={{
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            color: '#334155',
+                          }}
+                        >
+                          📝 {s.notes}
+                        </div>
+                      ) : !isYTD ? (
+                        <button
+                          onClick={() => openNotesModal(originalIdx)}
+                          style={{
+                            background: '#e0e7ff',
+                            color: '#3730a3',
+                            border: 'none',
+                            borderRadius: '4px',
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            cursor: 'pointer',
+                            fontWeight: '600',
+                            whiteSpace: 'nowrap',
+                          }}
+                          title="Add notes for this shipment"
+                        >
+                          + Note
+                        </button>
+                      ) : (
+                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>—</span>
+                      )}
+                    </td>
                     <td style={{ border: '1px solid #cbd5e1', padding: '8px', textAlign: 'center' }}>
                       {isUnsaved && !isYTD ? (
                         <button
@@ -2709,59 +2946,12 @@ if (statsWereHidden) {
       </div>
       <SingleAddModal />
       <BulkAddModal />
+      {renderNotesModal()}
     </div>
   );
 }
 
 export default App;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
