@@ -189,8 +189,12 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  const handleLogin = (success) => {
-    setIsAuthenticated(success);
+  // PasswordLogin calls onLogin() with no argument after a successful sign-in.
+  // Always set true here: passing the (undefined) argument through used to
+  // overwrite the `true` that onAuthStateChanged had just set, leaving the
+  // user stuck on the login screen with no error.
+  const handleLogin = () => {
+    setIsAuthenticated(true);
   };
 
   const handleLogout = async () => {
